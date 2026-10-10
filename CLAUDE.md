@@ -10,7 +10,7 @@ the owner asked for, how it is built and tested, and lessons learned.
 - Run: `cargo run --release -p tidycuts-app` (needs Rust and FFmpeg; see docs/building.md).
 - Before every commit: `scripts/check.sh` (format, clippy with warnings as errors, all
   tests). CI uses a newer Rust, so also run `scripts/check.sh +1.99.0` before pushing.
-- Releases: docs/releasing.md. The *Installers* workflow builds the Windows installer, the
+- Releases: docs/releasing.md. The *Installers* workflow (started by hand from the Actions tab) builds the Windows installer, the
   portable zip and the Mac disk image, and makes a draft release.
 
 ## Rules that matter

@@ -7,14 +7,10 @@ workflow, `.github/workflows/release.yml`.
 1. Check that `main` is green (the CI badge or the Actions tab).
 2. Change `version` in the root `Cargo.toml`, and move the entries in
    `CHANGELOG.md` under the new version.
-3. Commit, then tag and push the tag:
+3. Commit and push to `main`.
 
-   ```
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
-4. The **Installers** workflow builds:
+4. Start the **Installers** workflow: Actions → Installers → Run workflow, platform
+   *both*, and tick *Also make a draft release*. It builds:
    - `TidyCuts-Setup-<version>.exe`, the Windows installer (Inno Setup);
    - `TidyCuts-<version>-windows-portable.zip`, the same program in a folder
      that runs from anywhere, with FFmpeg included;
@@ -25,10 +21,8 @@ workflow, `.github/workflows/release.yml`.
    notes from `.github/release-notes.md` attached. Read the notes, try the
    installers on a real machine, and press Publish.
 
-You can also run the workflow by hand from the Actions tab (Run workflow). Leave
-"Also make a draft release" unticked to just try the installers, or tick it (with
-"both") to get the same draft release a tag would make; the tag is created for
-you.
+Leave "Also make a draft release" unticked to just try the installers. Publishing the
+draft creates the version tag (for example `v1.0.0`) on the commit that was built.
 
 ## Before each public release
 

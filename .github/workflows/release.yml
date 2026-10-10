@@ -1,12 +1,9 @@
 name: Installers
 
-# Builds the Windows installer and the Mac disk image. Mac runners cost ten
-# times a Linux one on a private repository, so this runs only when a version
-# is tagged (git tag v1.0.0 && git push origin v1.0.0) or when started by hand
-# from the Actions tab (tick "Also make a draft release" to get the release too).
+# Builds the Windows installer and the Mac disk image. It runs only when started by
+# hand from the Actions tab (Run workflow). Tick "Also make a draft release" to get a
+# draft release with all the files; publishing that draft creates the version tag.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       platform:
@@ -26,7 +23,7 @@ jobs:
   windows:
     name: Windows installer
     # A tag builds both; a hand-started run builds what was chosen.
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'mac' }}
+    if: ${{ inputs.platform != 'mac' }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -135,8 +132,8 @@ jobs:
 
   release:
     name: Attach to the release
-    # A tag, or a hand start with "Also make a draft release" ticked.
-    if: ${{ success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.make_release && inputs.platform == 'both')) }}
+    # Only when started by hand with "Also make a draft release" ticked.
+    if: ${{ success() && inputs.make_release && inputs.platform == 'both' }}
     needs: [windows, macos]
     runs-on: ubuntu-latest
     permissions:
