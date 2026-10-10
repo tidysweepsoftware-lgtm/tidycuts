@@ -1,0 +1,165 @@
+name: Installers
+
+# Builds the Windows installer and the Mac disk image. Mac runners cost ten
+# times a Linux one on a private repository, so this runs only when a version
+# is tagged (git tag v1.0.0 && git push origin v1.0.0) or when started by hand
+# from the Actions tab (tick "Also make a draft release" to get the release too).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Which installer to build"
+        type: choice
+        options: [both, windows, mac]
+        default: both
+      make_release:
+        description: "Also make a draft release from the files (needs: both)"
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows installer
+    # A tag builds both; a hand-started run builds what was chosen.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'mac' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p tidycuts-app
+      - name: Put the program and FFmpeg together
+        shell: pwsh
+        run: |
+          # LGPL build of FFmpeg, shipped as separate programs next to TidyCuts.
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-src
+          $src = Get-ChildItem ffmpeg-src -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force dist/TidyCuts/ffmpeg | Out-Null
+          Copy-Item target/release/tidycuts.exe dist/TidyCuts/TidyCuts.exe
+          Copy-Item "$($src.FullName)/bin/ffmpeg.exe", "$($src.FullName)/bin/ffprobe.exe" dist/TidyCuts/ffmpeg/
+          Copy-Item "$($src.FullName)/LICENSE.txt" dist/TidyCuts/ffmpeg/FFMPEG-LICENSE.txt
+          Copy-Item README.md dist/TidyCuts/
+          Copy-Item packaging/icons/tidycuts.ico dist/TidyCuts/TidyCuts.ico
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\tidycuts.iss
+      - name: Zip the portable version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
+          Compress-Archive -Path dist/TidyCuts -DestinationPath "dist/TidyCuts-$version-windows-portable.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TidyCuts-windows-files
+          path: |
+            dist/TidyCuts-Setup-*.exe
+            dist/TidyCuts-*-windows-portable.zip
+
+  ffmpeg-macos:
+    name: FFmpeg for the Mac (LGPL)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'windows' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: ffmpeg-macos
+          key: ffmpeg-macos-lgpl-7.1
+      - name: Build FFmpeg without GPL parts
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz | tar xJ
+          cd ffmpeg-7.1
+          ./configure --disable-gpl --disable-nonfree --disable-doc --disable-ffplay \
+            --enable-videotoolbox --enable-audiotoolbox --disable-autodetect \
+            --enable-static --disable-shared
+          make -j"$(sysctl -n hw.ncpu)"
+          mkdir -p ../ffmpeg-macos
+          cp ffmpeg ffprobe ../ffmpeg-macos/
+          cp COPYING.LGPLv2.1 ../ffmpeg-macos/FFMPEG-LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-macos
+          path: ffmpeg-macos
+
+  macos:
+    name: Mac app and disk image
+    runs-on: macos-latest
+    needs: ffmpeg-macos
+    # A Mac app without FFmpeg still works if the person installs it
+    # themselves, so a failed FFmpeg build doesn't stop the app.
+    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.platform != 'windows') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ffmpeg-macos
+          path: ffmpeg-macos
+      - run: chmod +x ffmpeg-macos/* || true
+      - run: cargo build --release -p tidycuts-app
+      - name: Make the app and the disk image
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          bash scripts/make-macos-app.sh target/release/tidycuts dist
+          bash scripts/make-macos-dmg.sh dist "dist/TidyCuts-$version-macos.dmg"
+      - name: Check the app inside the disk image
+        run: |
+          mount=$(mktemp -d)
+          hdiutil attach "dist/TidyCuts-$VERSION-macos.dmg" -mountpoint "$mount" -nobrowse -readonly
+          codesign --verify --deep --strict --verbose=2 "$mount/TidyCuts.app"
+          codesign -dv "$mount/TidyCuts.app" 2>&1 | head -12
+          lipo -info "$mount/TidyCuts.app/Contents/MacOS/TidyCuts"
+          ls -l "$mount" "$mount/TidyCuts.app/Contents/Resources"
+          hdiutil detach "$mount"
+      # The same app as a zip, in case the disk image is awkward to open.
+      - run: ditto -c -k --keepParent dist/TidyCuts.app "dist/TidyCuts-$VERSION-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TidyCuts-macos-dmg
+          path: |
+            dist/TidyCuts-*-macos.dmg
+            dist/TidyCuts-*-macos.zip
+
+  release:
+    name: Attach to the release
+    # A tag, or a hand start with "Also make a draft release" ticked.
+    if: ${{ success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.make_release && inputs.platform == 'both')) }}
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: TidyCuts-*-files
+          path: out
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: TidyCuts-macos-dmg
+          path: out
+      - name: Checksums and notes
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "TAG=v$version" >> "$GITHUB_ENV"
+          (cd out && sha256sum TidyCuts-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          sed -e "s/__VERSION__/$version/g" -e "s#__REPO__#$GITHUB_REPOSITORY#g" .github/release-notes.md > notes.md
+      # A draft, so nothing is published until it is reviewed.
+      # (Creates the tag too when it doesn't exist yet.)
+      - run: gh release create "$TAG" out/* --draft --target "$GITHUB_SHA" --title "TidyCuts ${TAG#v}" --notes-file notes.md -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}

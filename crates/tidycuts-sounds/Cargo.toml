@@ -1,0 +1,8 @@
+[package]
+name = "tidycuts-sounds"
+description = "Built-in, procedurally generated sound effects and music beds (std only)."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]

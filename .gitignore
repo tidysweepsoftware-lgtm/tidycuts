@@ -1,0 +1,5 @@
+/target
+/dist
+*.rcproj.tmp
+*.tcproj.tmp
+.DS_Store

@@ -1,0 +1,12 @@
+[package]
+name = "tidycuts-mcp"
+description = "A small MCP server (JSON-RPC over local HTTP) that lets Claude drive TidyCuts."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+log.workspace = true
