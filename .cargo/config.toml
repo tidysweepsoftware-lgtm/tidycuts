@@ -1,3 +1,8 @@
 # Lets Linux machines cross-compile a Windows build (needs the mingw-w64 toolchain).
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
+
+# Macs with Apple silicon: build for the M1 chip's core family, apple-a14 (every M-series chip can run it) so the
+# compiler may use the chip's own instructions.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-cpu=apple-a14"]

@@ -15,15 +15,11 @@ use tidycuts_engine::imagegen::{self, Placement, Quality, Request, Side, GLOWS, 
 
 use super::sizes::fmt_bytes;
 
-/// The shapes offered: (name, width, height). The thumbnail maker fits the
-/// picture to its own shape afterwards.
-const SHAPES: [(&str, u32, u32); 3] = [
-    ("Widescreen", 1280, 720),
-    ("Square", 1024, 1024),
-    ("Vertical", 720, 1280),
-];
+/// The shapes offered. The thumbnail maker fits the picture to its own shape
+/// afterwards.
+const SHAPES: [&str; 3] = ["Widescreen", "Square", "Vertical"];
 
-/// How many pictures one press makes.
+/// The most pictures one press makes (the window has this many places).
 const PICTURES: u32 = 4;
 
 enum Job {
@@ -56,6 +52,10 @@ pub struct ImageGenDialog {
     idea: String,
     style: usize,
     shape: usize,
+    /// The size, an index into `imagegen::RESOLUTIONS`.
+    resolution: usize,
+    /// How many pictures to draw, minus one (so 0 is one picture).
+    count: usize,
     /// A photo of a person to draw into the picture (mode 0).
     person: Option<PathBuf>,
     /// Pictures whose look the new ones copy (up to three).
@@ -68,6 +68,8 @@ pub struct ImageGenDialog {
     results: Vec<PathBuf>,
     textures: Vec<Option<egui::TextureHandle>>,
     selected: Option<usize>,
+    /// The picture shown large, when one was clicked.
+    viewing: Option<usize>,
     job: Arc<Mutex<Job>>,
     cancel: Arc<AtomicBool>,
     error: Option<String>,
@@ -96,6 +98,15 @@ fn load_png(path: &Path) -> Option<egui::ColorImage> {
     Some(egui::ColorImage::from_rgba_unmultiplied([w, h], &rgba))
 }
 
+/// The Desktop, where saved pictures go unless the person picks another place.
+fn desktop_dir(fallback: PathBuf) -> PathBuf {
+    let home =
+        std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from);
+    home.map(|h| h.join("Desktop"))
+        .filter(|d| d.is_dir())
+        .unwrap_or(fallback)
+}
+
 fn pick_photo(title: &str) -> Option<PathBuf> {
     rfd::FileDialog::new()
         .set_title(title)
@@ -117,6 +128,10 @@ impl ImageGenDialog {
             }
         }
         let any = Quality::ALL.into_iter().any(imagegen::installed);
+        // Start loading the models now, while the person is typing the idea.
+        if any && !models {
+            tidycuts_engine::imagegen_service::warm_up(quality);
+        }
         ImageGenDialog {
             screen: if any && !models {
                 Screen::Make
@@ -130,6 +145,8 @@ impl ImageGenDialog {
             idea: String::new(),
             style: 0,
             shape: 0,
+            resolution: 0,
+            count: 3,
             person: None,
             inspiration: Vec::new(),
             photo: None,
@@ -139,6 +156,7 @@ impl ImageGenDialog {
             results: Vec::new(),
             textures: Vec::new(),
             selected: None,
+            viewing: None,
             job: Arc::new(Mutex::new(Job::Idle)),
             cancel: Arc::new(AtomicBool::new(false)),
             error: None,
@@ -170,7 +188,7 @@ impl ImageGenDialog {
     }
 
     fn make(&mut self, ctx: &egui::Context) {
-        let (_, w, h) = SHAPES[self.shape.min(SHAPES.len() - 1)];
+        let (w, h) = imagegen::picture_size(self.shape, self.resolution);
         let person = (self.mode == 0).then(|| self.person.clone()).flatten();
         let mut references: Vec<PathBuf> = person.iter().cloned().collect();
         references.extend(self.inspiration.iter().cloned());
@@ -182,7 +200,7 @@ impl ImageGenDialog {
             ),
             width: w,
             height: h,
-            count: PICTURES,
+            count: self.pictures(),
             seed: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(1, |d| d.as_millis() as u64 % 1_000_000_000),
@@ -198,6 +216,7 @@ impl ImageGenDialog {
         let dir = self.work_dir.clone();
         self.error = None;
         self.selected = None;
+        self.viewing = None;
         self.cancel.store(false, Ordering::Relaxed);
         *self.job.lock().unwrap() = Job::Making(0.0);
         let (job, cancel, ctx) = (self.job.clone(), self.cancel.clone(), ctx.clone());
@@ -243,6 +262,7 @@ impl ImageGenDialog {
             Job::Downloaded(Ok(())) => {
                 self.first_use = false;
                 self.quality = self.picked;
+                tidycuts_engine::imagegen_service::warm_up(self.quality);
                 self.screen = Screen::Make;
                 app.prefs.imagegen_models = self.quality.id().to_string();
                 app.prefs.save();
@@ -264,6 +284,8 @@ impl ImageGenDialog {
                     })
                     .collect();
                 self.selected = (!files.is_empty()).then_some(0);
+                // One picture needs no choosing: show it large at once.
+                self.viewing = (files.len() == 1).then_some(0);
                 self.results = files;
             }
             Job::Made(Err(e)) if e != "Cancelled." => self.error = Some(e),
@@ -358,7 +380,16 @@ impl ImageGenDialog {
                         let ready = !busy && self.can_make();
                         if primary(
                             ui,
-                            &format!("{}  Make {PICTURES} pictures", ph::SPARKLE),
+                            &format!(
+                                "{}  Make {} {}",
+                                ph::SPARKLE,
+                                self.pictures(),
+                                if self.pictures() == 1 {
+                                    "picture"
+                                } else {
+                                    "pictures"
+                                }
+                            ),
                             ready,
                         )
                         .clicked()
@@ -372,6 +403,7 @@ impl ImageGenDialog {
         if let Some(q) = use_quality {
             self.quality = q;
             self.picked = q;
+            tidycuts_engine::imagegen_service::warm_up(q);
             app.prefs.imagegen_models = q.id().to_string();
             app.prefs.save();
             self.screen = Screen::Make;
@@ -401,11 +433,11 @@ impl ImageGenDialog {
         }
         if save {
             if let Some(src) = self.selected.and_then(|i| self.results.get(i)) {
-                let name =
-                    crate::thumbnail::free_name(&app.stills_dir(), "Generated picture", "png");
+                let desktop = desktop_dir(app.stills_dir());
+                let name = crate::thumbnail::free_name(&desktop, "Generated picture", "png");
                 if let Some(dest) = rfd::FileDialog::new()
                     .set_title("Save the picture")
-                    .set_directory(app.stills_dir())
+                    .set_directory(&desktop)
                     .set_file_name(
                         name.file_name()
                             .map(|n| n.to_string_lossy().into_owned())
@@ -438,6 +470,11 @@ impl ImageGenDialog {
             self.cancel.store(true, Ordering::Relaxed);
         }
         !done
+    }
+
+    /// How many pictures a press makes.
+    fn pictures(&self) -> u32 {
+        (self.count as u32 + 1).clamp(1, PICTURES)
     }
 
     fn can_make(&self) -> bool {
@@ -495,6 +532,19 @@ impl ImageGenDialog {
             Job::Downloading(s, f) => Some((s.clone(), *f)),
             _ => None,
         };
+        let memory = imagegen::shared_memory_gb();
+        let advice = imagegen::advice_for_memory(memory);
+        if let (Some(gb), Some(_)) = (memory, advice) {
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!(
+                        "This Mac has {gb:.0} GB of memory, shared by the processor and the graphics. The Standard models fit comfortably; High quality may be slow here."
+                    ))
+                    .color(theme::TEXT_DIM),
+                )
+                .wrap(),
+            );
+        }
         for q in Quality::ALL {
             let installed = imagegen::installed(q);
             let current = installed && q == self.quality && !self.first_use;
@@ -527,6 +577,16 @@ impl ImageGenDialog {
                                         .size(13.0)
                                         .color(theme::TEXT_DIM),
                                 );
+                                if advice == Some(q) {
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "{}  Recommended for this Mac",
+                                            ph::STAR
+                                        ))
+                                        .size(12.5)
+                                        .color(theme::WARNING),
+                                    );
+                                }
                                 if installed {
                                     ui.label(
                                         RichText::new(format!(
@@ -627,6 +687,13 @@ impl ImageGenDialog {
             Job::Making(f) => Some(f),
             _ => None,
         };
+        if let Some(i) = self.viewing {
+            if self.textures.get(i).is_some_and(Option::is_some) && making.is_none() {
+                self.large_view(ui, i);
+                return;
+            }
+            self.viewing = None;
+        }
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 20.0;
             // The pictures.
@@ -643,6 +710,73 @@ impl ImageGenDialog {
         });
         if let Some(e) = &self.error {
             ui.add(egui::Label::new(RichText::new(e).color(theme::WARNING)).wrap());
+        }
+    }
+
+    /// One picture as large as the window allows, with a way to step through
+    /// the others and back.
+    fn large_view(&mut self, ui: &mut egui::Ui, i: usize) {
+        let Some(tex) = self.textures.get(i).and_then(|t| t.as_ref()) else {
+            return;
+        };
+        let size = tex.size_vec2();
+        let room = egui::vec2(
+            ui.available_width(),
+            (ui.ctx().content_rect().height() - 330.0).clamp(260.0, 700.0),
+        );
+        let k = (room.x / size.x).min(room.y / size.y);
+        let (rect, _) = ui.allocate_exact_size(room, Sense::hover());
+        ui.painter().rect_filled(
+            rect,
+            CornerRadius::same(6),
+            Color32::from_rgb(0x10, 0x12, 0x15),
+        );
+        let r = egui::Rect::from_center_size(rect.center(), size * k);
+        ui.painter().image(
+            tex.id(),
+            r,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
+        let total = self.textures.iter().filter(|t| t.is_some()).count();
+        let mut go: Option<usize> = None;
+        ui.horizontal(|ui| {
+            if ui
+                .add(theme::outline_button(format!(
+                    "{}  All pictures",
+                    ph::SQUARES_FOUR
+                )))
+                .clicked()
+            {
+                self.viewing = None;
+            }
+            if ui
+                .add_enabled(i > 0, theme::outline_button(ph::CARET_LEFT))
+                .on_hover_text("Previous picture")
+                .clicked()
+            {
+                go = Some(i - 1);
+            }
+            if ui
+                .add_enabled(i + 1 < total, theme::outline_button(ph::CARET_RIGHT))
+                .on_hover_text("Next picture")
+                .clicked()
+            {
+                go = Some(i + 1);
+            }
+            ui.label(
+                RichText::new(format!(
+                    "Picture {} of {total}  ·  {} x {} pixels",
+                    i + 1,
+                    size.x as u32,
+                    size.y as u32
+                ))
+                .color(theme::TEXT_DIM),
+            );
+        });
+        if let Some(n) = go {
+            self.viewing = Some(n);
+            self.selected = Some(n);
         }
     }
 
@@ -693,6 +827,10 @@ impl ImageGenDialog {
                     }
                     if resp.clicked() && tex.is_some() {
                         self.selected = Some(i);
+                        self.viewing = Some(i);
+                    }
+                    if tex.is_some() {
+                        resp.on_hover_cursor(egui::CursorIcon::PointingHand);
                     }
                 }
             });
@@ -806,10 +944,33 @@ impl ImageGenDialog {
                 STYLES.iter().enumerate().map(|(i, s)| (i, s.1)).collect();
             widgets::choice(ui, "imagegen-style", &mut self.style, &options);
         });
-        let names: Vec<&str> = SHAPES.iter().map(|s| s.0).collect();
         widgets::labeled_row(ui, "Shape", 70.0, |ui| {
-            widgets::segmented(ui, &mut self.shape, &names);
+            widgets::segmented(ui, &mut self.shape, &SHAPES);
         });
+        let before = self.resolution;
+        widgets::labeled_row(ui, "Size", 70.0, |ui| {
+            widgets::segmented(ui, &mut self.resolution, &imagegen::RESOLUTIONS);
+        });
+        if self.resolution != before {
+            // A sensible number for the new size; the person can still change it.
+            self.count = imagegen::pictures_for(self.resolution) as usize - 1;
+        }
+        widgets::labeled_row(ui, "Pictures", 70.0, |ui| {
+            widgets::segmented(ui, &mut self.count, &["1", "2", "3", "4"]);
+        });
+        let (w, h) = imagegen::picture_size(self.shape, self.resolution);
+        widgets::hint(
+            ui,
+            &format!(
+                "{w} x {h}, {}.{}",
+                imagegen::time_hint(self.resolution),
+                if self.resolution >= 2 {
+                    " Larger sizes are drawn smaller and then refined; closing other programs that use the graphics card makes it faster."
+                } else {
+                    ""
+                }
+            ),
+        );
         if self.mode == 0 {
             widgets::labeled_row(ui, "Person", 70.0, |ui| {
                 let label = self

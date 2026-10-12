@@ -176,12 +176,13 @@ jobs:
         run: |
           git clone --depth 1 --recursive --branch "${{ steps.ver.outputs.tag }}" https://github.com/leejet/stable-diffusion.cpp
           cd stable-diffusion.cpp
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_METAL=ON -DBUILD_SHARED_LIBS=OFF             -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
-          cmake --build build -j --config Release --target sd-cli
+          # Metal = the graphics chip of an M1 or newer; the shaders are built into the program.
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON             -DBUILD_SHARED_LIBS=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build -j --config Release --target sd-cli sd-server
           mkdir -p ../sdcpp-macos
-          cp build/bin/sd-cli ../sdcpp-macos/
+          cp build/bin/sd-cli build/bin/sd-server ../sdcpp-macos/
           cp LICENSE ../sdcpp-macos/STABLE-DIFFUSION-CPP-LICENSE.txt
-      - run: ./sdcpp-macos/sd-cli --help | head -3
+      - run: ./sdcpp-macos/sd-cli --help | head -3 && ./sdcpp-macos/sd-server --help | head -3
       - uses: actions/upload-artifact@v4
         with:
           name: sdcpp-macos
@@ -223,7 +224,7 @@ jobs:
         with:
           name: sdcpp-macos
           path: sdcpp-macos
-      - run: chmod +x sdcpp-macos/sd-cli || true
+      - run: chmod +x sdcpp-macos/sd-cli sdcpp-macos/sd-server || true
       - run: cargo build --release -p tidycuts-app
       # Studio Voice: the voice model and ONNX Runtime, kept in ./voice-assets until
       # make-macos-app.sh moves them into the app (see packaging/voice-assets.txt).

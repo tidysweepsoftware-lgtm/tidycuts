@@ -11,6 +11,7 @@ pub mod detect;
 pub mod export;
 pub mod frames;
 pub mod imagegen;
+pub mod imagegen_service;
 pub mod level_guard;
 pub mod levels;
 pub mod limiter;

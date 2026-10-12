@@ -2601,6 +2601,8 @@ impl eframe::App for TidyCutsApp {
         if let Some(job) = &self.export_job {
             job.cancel.store(true, Ordering::Relaxed);
         }
+        // The picture-drawing program may still be holding the graphics card.
+        tidycuts_engine::imagegen_service::shutdown();
         // A normal exit: nothing needs recovering.
         self.discard_autosave();
         self.prefs.save();

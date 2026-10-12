@@ -132,6 +132,31 @@ impl Quality {
     }
 }
 
+/// The memory of this computer in GB (binary), where it is the memory the
+/// picture models share with the graphics chip: a Mac with Apple silicon.
+/// `None` elsewhere (a PC's graphics card has memory of its own).
+pub fn shared_memory_gb() -> Option<f64> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let out = std::process::Command::new("sysctl")
+        .args(["-n", "hw.memsize"])
+        .output()
+        .ok()?;
+    let bytes: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+    Some(bytes / f64::from(1u32 << 30))
+}
+
+/// Which size of the models suits a computer with this much shared memory:
+/// Standard needs about 5 GB for itself, High quality about 9 GB, and the
+/// system and the editor need the rest. `None`: either is fine (or unknown).
+pub fn advice_for_memory(gb: Option<f64>) -> Option<Quality> {
+    match gb {
+        Some(g) if g < 12.0 => Some(Quality::Standard),
+        _ => None,
+    }
+}
+
 /// The folder the model files are kept in (`TIDYCUTS_IMAGEGEN_MODELS` overrides).
 pub fn models_dir() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("TIDYCUTS_IMAGEGEN_MODELS") {
@@ -152,6 +177,8 @@ pub fn installed(q: Quality) -> bool {
 /// Deletes a size of the models (a file the other size also needs stays).
 pub fn remove(q: Quality) -> Result<(), String> {
     let dir = models_dir().ok_or("There is no place the models are kept.")?;
+    // The program may be holding the files open.
+    crate::imagegen_service::shutdown();
     let other = if q == Quality::Standard {
         Quality::High
     } else {
@@ -359,6 +386,90 @@ pub fn full_prompt(idea: &str, style: usize) -> String {
     )
 }
 
+/// The picture sizes offered, small to large.
+pub const RESOLUTIONS: [&str; 4] = ["720p", "1080p", "2K", "4K"];
+
+/// The size of a picture in pixels for a shape (0 widescreen, 1 square,
+/// 2 vertical) and a size from [`RESOLUTIONS`].
+pub fn picture_size(shape: usize, tier: usize) -> (u32, u32) {
+    let t = tier.min(3);
+    let long = [1280, 1920, 2560, 3840][t];
+    match shape {
+        0 => (long, long * 9 / 16),
+        2 => (long * 9 / 16, long),
+        _ => {
+            let side = [1024, 1536, 2048, 2160][t];
+            (side, side)
+        }
+    }
+}
+
+/// How many pictures one press makes: the larger ones take much longer.
+pub fn pictures_for(tier: usize) -> u32 {
+    [4, 4, 2, 1][tier.min(3)]
+}
+
+/// About how long one picture takes at a size, in words.
+pub fn time_hint(tier: usize) -> &'static str {
+    [
+        "about 5 seconds each",
+        "about 10 seconds each",
+        "about 1 minute each",
+        "about 2 minutes each",
+    ][tier.min(3)]
+}
+
+/// Pictures up to this many pixels are drawn at their own size; larger ones
+/// are drawn at half the width and height and then refined at full size (the
+/// model cannot draw a 4K picture in one go: it runs out of memory).
+const DRAW_LIMIT: u32 = 2_400_000;
+
+/// The size a picture is drawn at, and whether it is refined to the full size.
+pub(crate) fn draw_size(width: u32, height: u32) -> ((u32, u32), bool) {
+    let round = |v: u32| (v / 16 * 16).max(256);
+    if width * height <= DRAW_LIMIT {
+        ((round(width), round(height)), false)
+    } else {
+        ((round(width / 2), round(height / 2)), true)
+    }
+}
+
+/// The width and height of a PNG file, from its header.
+fn png_size(path: &Path) -> Option<(u32, u32)> {
+    let mut head = [0u8; 24];
+    std::fs::File::open(path).ok()?.read_exact(&mut head).ok()?;
+    (head[1..4] == *b"PNG").then_some(())?;
+    Some((
+        u32::from_be_bytes(head[16..20].try_into().ok()?),
+        u32::from_be_bytes(head[20..24].try_into().ok()?),
+    ))
+}
+
+/// Makes a picture exactly `width` x `height` (the model draws in steps of 16
+/// pixels, and the CLI path cannot draw the largest sizes at all).
+fn fit_exact(path: &Path, width: u32, height: u32) -> Result<(), String> {
+    if png_size(path) == Some((width, height)) {
+        return Ok(());
+    }
+    let tools = tidycuts_media::Tools::get().map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("fit.png");
+    let r = tools
+        .ffmpeg_cmd()
+        .args(["-y", "-i"])
+        .arg(path)
+        .args(["-vf", &format!("scale={width}:{height}:flags=lanczos")])
+        .arg(&tmp)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !r.status.success() {
+        return Err(format!(
+            "Could not resize the picture: {}",
+            String::from_utf8_lossy(&r.stderr).trim()
+        ));
+    }
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
 /// The most inspiration pictures that can be given.
 pub const MAX_INSPIRATION: usize = 3;
 
@@ -418,8 +529,9 @@ fn build_args(req: &Request, models: &Path, out: &Path) -> Vec<OsString> {
     push("--cfg-scale", "1.0".into());
     push("--steps", "4".into());
     // The model wants sizes in steps of 16.
-    push("-W", (req.width / 16 * 16).max(256).to_string().into());
-    push("-H", (req.height / 16 * 16).max(256).to_string().into());
+    let (draw, _) = draw_size(req.width, req.height);
+    push("-W", draw.0.to_string().into());
+    push("-H", draw.1.to_string().into());
     push("-b", req.count.max(1).to_string().into());
     push("-s", req.seed.to_string().into());
     for r in &req.references {
@@ -479,7 +591,7 @@ impl Progress {
 }
 
 /// Words that tell what went wrong, from the program's last lines.
-fn explain_failure(tail: &[String]) -> String {
+pub(crate) fn explain_failure(tail: &[String]) -> String {
     let all = tail.join(" ").to_lowercase();
     if all.contains("out of device memory")
         || all.contains("out of memory")
@@ -500,9 +612,23 @@ fn explain_failure(tail: &[String]) -> String {
     }
 }
 
-/// Makes `req.count` pictures into `out_dir` and returns their files. `progress`
-/// gets 0..1. Stops when `cancel` is set.
+/// Makes `req.count` pictures into `out_dir`, each exactly `req.width` x
+/// `req.height`, and returns their files. `progress` gets 0..1. Stops when
+/// `cancel` is set.
 pub fn generate(
+    req: &Request,
+    out_dir: &Path,
+    cancel: &AtomicBool,
+    progress: impl FnMut(f64),
+) -> Result<Vec<PathBuf>, String> {
+    let files = generate_files(req, out_dir, cancel, progress)?;
+    for f in &files {
+        fit_exact(f, req.width, req.height)?;
+    }
+    Ok(files)
+}
+
+fn generate_files(
     req: &Request,
     out_dir: &Path,
     cancel: &AtomicBool,
@@ -521,6 +647,18 @@ pub fn generate(
         let _ = std::fs::remove_file(out_dir.join(format!("picture_{i}.png")));
     }
     let _ = std::fs::remove_file(&out);
+    // The background program keeps the models loaded, so pictures start at once;
+    // if it cannot run, the one-shot program below does the job.
+    // (TIDYCUTS_IMAGEGEN_NO_SERVICE=1 turns this off, for measuring.)
+    if std::env::var_os("TIDYCUTS_IMAGEGEN_NO_SERVICE").is_none() {
+        use crate::imagegen_service::{self as service, Error};
+        match service::generate(req, out_dir, cancel, &mut progress) {
+            Ok(files) => return Ok(files),
+            Err(Error::Cancelled) => return Err("Cancelled.".into()),
+            Err(Error::Failed(m)) => return Err(m),
+            Err(Error::Unavailable(_)) => {}
+        }
+    }
     let mut cmd = std::process::Command::new(&program);
     cmd.args(build_args(req, &models, &out))
         .stdout(Stdio::null())
@@ -573,6 +711,7 @@ pub fn generate(
             }
         })
     };
+    let started = std::time::Instant::now();
     let status = loop {
         if cancel.load(Ordering::Relaxed) {
             return Err("Cancelled.".into());
@@ -580,7 +719,12 @@ pub fn generate(
         match child.0.try_wait() {
             Ok(Some(s)) => break s,
             Ok(None) => {
-                progress(state.lock().unwrap().0.fraction());
+                // What the program says; if it says nothing yet, a guess from time.
+                let real = state.lock().unwrap().0.fraction();
+                let guess = (started.elapsed().as_secs_f64()
+                    / (9.0 * f64::from(req.count.max(1)) + 3.0))
+                    .min(0.85);
+                progress(if real > 0.0 { real } else { guess });
                 std::thread::sleep(Duration::from_millis(120));
             }
             Err(e) => return Err(e.to_string()),
@@ -724,6 +868,35 @@ mod tests {
                 assert!(f.url.starts_with("https://huggingface.co/"));
                 assert!(f.bytes > 100_000_000);
             }
+        }
+    }
+
+    #[test]
+    fn sizes_go_from_720p_to_4k_in_every_shape() {
+        assert_eq!(picture_size(0, 0), (1280, 720));
+        assert_eq!(picture_size(0, 1), (1920, 1080));
+        assert_eq!(picture_size(0, 2), (2560, 1440));
+        assert_eq!(picture_size(0, 3), (3840, 2160));
+        assert_eq!(picture_size(2, 3), (2160, 3840));
+        assert_eq!(picture_size(1, 0), (1024, 1024));
+        assert_eq!(picture_size(1, 3), (2160, 2160));
+        assert_eq!(pictures_for(0), 4);
+        assert_eq!(pictures_for(3), 1);
+        // Up to full HD is drawn as it is; bigger is drawn at half size and refined.
+        assert_eq!(draw_size(1920, 1080), ((1920, 1072), false));
+        assert_eq!(draw_size(3840, 2160), ((1920, 1072), true));
+        assert_eq!(draw_size(2560, 1440), ((1280, 720), true));
+    }
+
+    #[test]
+    fn small_macs_are_pointed_to_the_standard_models() {
+        assert_eq!(advice_for_memory(Some(8.0)), Some(Quality::Standard));
+        assert_eq!(advice_for_memory(Some(16.0)), None);
+        assert_eq!(advice_for_memory(Some(36.0)), None);
+        // A PC (no shared memory) gets no advice.
+        assert_eq!(advice_for_memory(None), None);
+        if !cfg!(target_os = "macos") {
+            assert_eq!(shared_memory_gb(), None);
         }
     }
 
