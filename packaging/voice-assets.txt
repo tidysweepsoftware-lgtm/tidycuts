@@ -21,3 +21,15 @@ ORT_MAC_SHA256=c436bd9f47dbce6f6311ccc21de97f829b3c862c09d24aa321958cb72f0a1d32
 WHISPER_CPP_TAG=v1.9.5
 WHISPER_CPP_WIN_URL=https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip
 WHISPER_CPP_WIN_SHA256=6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb
+
+# Image Thumbnail Generator: the sd-cli program of stable-diffusion.cpp (MIT), which runs
+# FLUX.2 klein 4B (Apache 2.0) with Qwen3 4B (Apache 2.0). The program ships with TidyCuts in the
+# imagegen folder. On Windows it is the official Vulkan build from the stable-diffusion.cpp
+# releases (it works on NVIDIA, AMD and Intel graphics cards); on the Mac the release workflow
+# builds it from the same version of the source (SD_CPP_TAG), with Metal. The model files
+# (5.1 GB Standard or 8.7 GB High quality) are not packaged: TidyCuts downloads the size the
+# person chooses, once, from Hugging Face (see crates/tidycuts-engine/src/imagegen.rs, which also
+# holds every file's size and checksum).
+SD_CPP_TAG=master-958-792bcd3
+SD_CPP_WIN_URL=https://github.com/leejet/stable-diffusion.cpp/releases/download/master-958-792bcd3/sd-master-792bcd3-bin-win-vulkan-x64.zip
+SD_CPP_WIN_SHA256=1feacc5e2b0b426cba98eedcaac369033a03c504efcbaab083ab67e37506bd08

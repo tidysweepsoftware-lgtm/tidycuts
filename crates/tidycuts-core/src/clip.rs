@@ -511,8 +511,11 @@ pub struct AudioSettings {
     pub pitch: f64,
     /// Keeps the original pitch when the speed changes.
     pub keep_pitch: bool,
-    /// Evens out the loudness to a standard level (-14 LUFS).
+    /// Turns down whatever is louder than `normalize_level` (and never turns
+    /// anything up), and keeps peaks under -1 dB.
     pub normalize: bool,
+    /// The loudest level Normalize allows, in LUFS (-30 ..= -8).
+    pub normalize_level: f64,
     /// Steady-noise reduction (hiss, fans, hum-like rooms), 0 = off ..= 100.
     pub denoise: f64,
     /// Voice clean-up: a trained model separates the voice from everything
@@ -552,6 +555,7 @@ impl Default for AudioSettings {
             pitch: 0.0,
             keep_pitch: true,
             normalize: false,
+            normalize_level: -18.0,
             denoise: 0.0,
             voice_clean: 0.0,
             leveler: 0.0,

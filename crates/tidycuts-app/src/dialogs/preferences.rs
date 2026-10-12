@@ -12,11 +12,12 @@ use std::sync::{Arc, Mutex};
 use tidycuts_core::Project;
 use tidycuts_engine::export::{ExportSettings, VideoCodec};
 
-const PAGES: [(&str, &str); 5] = [
+const PAGES: [(&str, &str); 6] = [
     (ph::GEAR_SIX, "General"),
     (ph::SCISSORS, "Editing"),
     (ph::LIGHTNING, "Performance"),
     (ph::HARD_DRIVES, "Storage"),
+    (ph::SPARKLE, "Image generator"),
     (ph::ROBOT, "AI assistants"),
 ];
 
@@ -406,6 +407,37 @@ impl PreferencesDialog {
         }
     }
 
+    /// The Image Thumbnail Generator's models: what is downloaded, and a way
+    /// to the window that downloads, switches and deletes them.
+    fn image_models(&mut self, ui: &mut egui::Ui, open: &mut bool) {
+        use tidycuts_engine::imagegen::{self, Quality};
+        widgets::group_title(ui, "Image Thumbnail Generator");
+        widgets::hint(
+            ui,
+            "Draws thumbnails from your idea, on this computer and for free. It needs model files that are downloaded once. You can keep both sizes and pick one each time you make a thumbnail.",
+        );
+        for q in Quality::ALL {
+            field(ui, q.name(), |ui| {
+                let status = if imagegen::installed(q) {
+                    format!("{}  Downloaded", ph::CHECK_CIRCLE)
+                } else {
+                    format!("Not downloaded ({})", super::sizes::fmt_bytes(q.bytes()))
+                };
+                ui.label(RichText::new(status).color(theme::TEXT));
+            });
+        }
+        ui.add_space(6.0);
+        if ui
+            .add(theme::outline_button(format!(
+                "{}  Choose, download or delete models…",
+                ph::SPARKLE
+            )))
+            .clicked()
+        {
+            *open = true;
+        }
+    }
+
     fn storage(&mut self, ui: &mut egui::Ui, app: &TidyCutsApp, ctx: &egui::Context) {
         let current_dir = app.prefs.cache_dir.clone();
         let d = &mut self.draft;
@@ -487,6 +519,7 @@ impl PreferencesDialog {
         let mut ok = false;
         let mut cancel = false;
         let mut reset = false;
+        let mut open_models = false;
         let (_, keys) = window(ctx, "preferences", 780.0, |ui| {
             cancel |= header(
                 ui,
@@ -524,6 +557,7 @@ impl PreferencesDialog {
                         1 => self.editing(ui),
                         2 => self.performance(ui),
                         3 => self.storage(ui, app, ctx),
+                        4 => self.image_models(ui, &mut open_models),
                         _ => self.claude(ui, app),
                     }
                 });
@@ -551,6 +585,9 @@ impl PreferencesDialog {
             );
         });
         ctx.data_mut(|d| d.insert_temp(page_id(), page));
+        if open_models {
+            super::open_imagegen(app, true);
+        }
         if reset {
             let keep = &self.draft;
             self.draft = Prefs {
@@ -574,6 +611,7 @@ impl PreferencesDialog {
             recent_projects: old.recent_projects.clone(),
             layout: old.layout,
             project_defaults: old.project_defaults.clone(),
+            imagegen_models: old.imagegen_models.clone(),
             ..self.draft.clone()
         };
         app.timeline.snap = new.snapping;

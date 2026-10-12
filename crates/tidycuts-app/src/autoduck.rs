@@ -69,17 +69,12 @@ impl TidyCutsApp {
         };
         let (start, duration) = (c.start, c.duration());
         let project = self.project.clone();
-        let table = self
-            .engine
-            .as_ref()
-            .map(|e| e.analysis.loudness.clone())
-            .unwrap_or_default();
         let tx = self.duck_tx.clone();
         let ctx = self.ctx.clone();
         self.notify("Listening for speech…", false);
         std::thread::spawn(move || {
             let never = AtomicBool::new(false);
-            let result = autoduck::find_speech(&project, clip, table, &never);
+            let result = autoduck::find_speech(&project, clip, &never);
             let _ = tx.send(Finished {
                 clip,
                 start,

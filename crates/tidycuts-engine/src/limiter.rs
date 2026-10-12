@@ -49,6 +49,11 @@ impl PeakLimiter {
         }
     }
 
+    /// How many frames later than it went in a sound comes out.
+    pub fn delay_frames(&self) -> usize {
+        self.n - 1
+    }
+
     /// Takes one frame and gives the frame from `n - 1` frames ago, with the
     /// volume turned down as far as the peaks around it need.
     pub fn process(&mut self, frame: [f32; 2]) -> [f32; 2] {

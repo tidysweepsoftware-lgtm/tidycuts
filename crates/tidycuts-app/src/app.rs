@@ -1727,7 +1727,6 @@ impl TidyCutsApp {
         };
         let project = self.project.clone();
         let renderer = engine.renderer.clone();
-        let loudness = engine.analysis.loudness.clone();
         let analysis = engine.analysis.clone();
         let progress = Arc::new(Mutex::new(ExportProgress::default()));
         let cancel = Arc::new(AtomicBool::new(false));
@@ -1744,7 +1743,6 @@ impl TidyCutsApp {
                     &s,
                     renderer,
                     &statics,
-                    loudness,
                     &auto,
                     &c2,
                     |p| {

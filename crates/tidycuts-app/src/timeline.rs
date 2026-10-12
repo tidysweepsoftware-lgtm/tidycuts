@@ -915,6 +915,20 @@ fn toolbar_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect) {
         && tool(
             ui,
             r,
+            ph::SPARKLE,
+            "Image Thumbnail Generator: describe a thumbnail and get pictures to choose from",
+            true,
+            false,
+        )
+        .clicked()
+    {
+        crate::dialogs::open_imagegen(app, false);
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
             ph::CHART_BAR,
             "Scopes: waveform, vectorscope and histogram of the picture",
             true,

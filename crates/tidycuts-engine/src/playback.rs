@@ -6,7 +6,7 @@
 
 use crate::frames::{decode_size, StreamFrames};
 use crate::levels::AudioLevels;
-use crate::mixer::{LoudnessTable, Meters, Mixer};
+use crate::mixer::{Meters, Mixer};
 use crate::plan::{Planner, PreparedFrame};
 use crate::previews::Cached;
 use crate::statics::Statics;
@@ -62,7 +62,6 @@ impl Playback {
     pub fn new(
         project: Arc<Project>,
         statics: Arc<Statics>,
-        loudness: LoudnessTable,
         auto_grades: AutoGrades,
         levels: AudioLevels,
         repaint: Arc<dyn Fn() + Send + Sync>,
@@ -109,7 +108,7 @@ impl Playback {
             let meters = meters.clone();
             thread::Builder::new()
                 .name("tidycuts-play-audio".into())
-                .spawn(move || audio_thread(shared, q, sample_rate, channels, loudness, meters))
+                .spawn(move || audio_thread(shared, q, sample_rate, channels, meters))
                 .expect("spawn audio thread");
         }
         Playback {
@@ -256,10 +255,9 @@ fn audio_thread(
     queue: Arc<AudioQueue>,
     sr: u32,
     channels: usize,
-    loudness: LoudnessTable,
     meters: Arc<Meters>,
 ) {
-    let mut mixer = Mixer::new(sr, Duration::from_millis(60), loudness);
+    let mut mixer = Mixer::new(sr, Duration::from_millis(60));
     mixer.meters = Some(meters.clone());
     let mut epoch = u64::MAX;
     let mut cursor = Time::ZERO;
@@ -559,7 +557,6 @@ mod tests {
         let mut pb = Playback::new(
             live,
             Arc::new(Statics::default()),
-            LoudnessTable::default(),
             Arc::new(|_| None),
             AudioLevels::default(),
             Arc::new(|| {}),
@@ -583,7 +580,6 @@ mod tests {
         let mut pb = Playback::new(
             Arc::new(solid_project(red, 20.0, 0.0)),
             Arc::new(Statics::default()),
-            LoudnessTable::default(),
             Arc::new(|_| None),
             AudioLevels::default(),
             Arc::new(|| {}),

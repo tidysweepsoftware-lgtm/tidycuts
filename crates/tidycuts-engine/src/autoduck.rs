@@ -5,7 +5,7 @@
 //! 10 ms, the chance that a voice is present), on the mix of everything on the
 //! timeline except the music.
 
-use crate::mixer::{LoudnessTable, Mixer};
+use crate::mixer::Mixer;
 use nnnoiseless::DenoiseState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -143,7 +143,6 @@ pub fn duck_points(
 pub fn find_speech(
     project: &Project,
     exclude: ClipId,
-    loudness: LoudnessTable,
     cancel: &AtomicBool,
 ) -> Result<Vec<(f64, f64)>, String> {
     let mut p = project.clone();
@@ -154,7 +153,7 @@ pub fn find_speech(
     if total <= Time::ZERO {
         return Err("There is nothing on the timeline.".into());
     }
-    let mut mixer = Mixer::new(SAMPLE_RATE, Duration::from_secs(30), loudness);
+    let mut mixer = Mixer::new(SAMPLE_RATE, Duration::from_secs(30));
     let frames_total = (total.as_secs_f64() * SAMPLE_RATE as f64) as usize;
     let mut mono: Vec<f32> = Vec::with_capacity(frames_total);
     let mut buf = vec![0f32; 4096 * 2];

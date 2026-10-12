@@ -32,9 +32,9 @@ and then its categories.
   stabilisation, lens correction, denoise, upscaling and sharpening.
 - Audio: **Enhance Speech** (one click for a talking voice), **Voice Clean-up**
   (Studio Voice, a neural network that keeps the voice and turns down fans, hiss,
-  traffic and room noise; it runs on your computer), Leveler (lifts quiet speech and
-  holds loud parts), a peak limiter, volume, fades, pan, pitch, voice changer,
-  equaliser, normalising, hiss, wind and hum removal, de-esser, ducking.
+  traffic and room noise; it runs on your computer), Leveler (lifts quiet speech), a
+  peak limiter, volume, fades, pan, pitch, voice changer, equaliser, Normalize (turns
+  down only what is too loud), hiss, wind and hum removal, de-esser, ducking.
 - Color: exposure, contrast, temperature and tint, highlights and shadows,
   saturation, HSL for eight colour ranges, curves, and LUTs (built-in looks or
   your own `.cube` files, kept inside the project).
@@ -75,6 +75,14 @@ Preview Files clears them.
 a lettering style and where it sits, and save a PNG or JPG (widescreen, square or
 vertical). Edit menu → Make Thumbnail.
 
+**Image Thumbnail Generator.** The sparkle button beside the timeline (or Edit menu → Image
+Thumbnail Generator). Type an idea and get four pictures drawn on your computer; pick a look
+and a shape, add up to three inspiration pictures to copy their colours and mood, or a photo of
+a person to draw in. *My photo in a scene* keeps a real photo exact and draws the scene around it.
+*Add words* opens the thumbnail maker with the picture. The first time you choose and download
+the models (Standard 5.1 GB or High quality 8.7 GB, once); after that it works offline, and
+both sizes can be kept and chosen per thumbnail.
+
 **Colour.** Sliders, HSL ranges, curves, LUTs and four colour wheels (lift, gamma,
 gain, offset) for fine colour work. View menu → Scopes shows a waveform, an RGB
 parade, a vectorscope and a histogram of what the preview shows.
@@ -91,10 +99,11 @@ with soft and whispered voices, leaves out sounds such as sighs, and puts each c
 screen only while the voice is there. **Lower Under Speech** (Clip menu or the Audio tab)
 dips a music clip under every spoken part.
 
-**Normalize and Enhance Speech.** On the Audio tab, **Normalize** is one click: it evens out
-loud and quiet parts, brings the clip to a comfortable loudness (-16 LUFS) and never lets it
-clip. **Enhance Speech** removes background noise from a voice (Studio Voice, included) and
-adds levelling, a podcast tone and a peak limiter.
+**Normalize and Enhance Speech.** On the Audio tab, **Normalize** is one click and only turns
+down what is too loud: anything above its limit (-18 LUFS, changeable with the Loudest level
+slider) is lowered smoothly, everything else is left exactly as it is, nothing is made louder
+and peaks never clip. **Enhance Speech** removes background noise from a voice (Studio Voice,
+included), adds a podcast tone and turns Normalize on.
 
 **Stabilization.** Video tab > Stabilization watches the clip once, works out how the camera
 moved, and takes the shake out (a walking person in the picture does not fool it). The

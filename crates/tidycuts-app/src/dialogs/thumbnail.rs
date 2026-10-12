@@ -21,6 +21,8 @@ enum Source {
     /// What the timeline shows at a moment.
     Timeline,
     Media(MediaId),
+    /// A picture that was just made (by the Image Thumbnail Generator).
+    Picture,
 }
 
 /// What a prepared picture was made from.
@@ -37,6 +39,8 @@ pub struct ThumbnailDialog {
     source: Source,
     /// Videos and photos of the library.
     media: Vec<(MediaId, String, MediaKind, f64)>,
+    /// A picture handed in by the generator.
+    picture: Option<MediaItem>,
     timeline_secs: f64,
     base: Option<(BaseKey, MediaItem)>,
     preview: Option<egui::TextureHandle>,
@@ -77,6 +81,7 @@ impl ThumbnailDialog {
             s: Settings::default(),
             source,
             media,
+            picture: None,
             timeline_secs,
             base: None,
             preview: None,
@@ -93,6 +98,16 @@ impl ThumbnailDialog {
         d
     }
 
+    /// The maker with a picture that was just made, ready for words.
+    pub fn with_picture(app: &TidyCutsApp, path: &std::path::Path) -> Result<Self, String> {
+        let item = tidycuts_media::probe(path).map_err(|e| e.to_string())?;
+        let mut d = Self::new(app);
+        d.picture = Some(item);
+        d.source = Source::Picture;
+        d.s.at = 0.0;
+        Ok(d)
+    }
+
     /// A good starting moment for the current source.
     fn first_moment(&self, playhead: f64) -> f64 {
         match self.source {
@@ -104,6 +119,7 @@ impl ThumbnailDialog {
                     0.0
                 }
             }),
+            Source::Picture => 0.0,
         }
     }
 
@@ -116,13 +132,14 @@ impl ThumbnailDialog {
                 .iter()
                 .find(|m| m.0 == id && m.2 == MediaKind::Video)
                 .map(|m| m.3),
+            Source::Picture => None,
         }
     }
 
     fn key(&self) -> BaseKey {
         let ms = match self.source {
             Source::Timeline => (self.s.at * 1000.0).round() as i64,
-            Source::Media(_) => 0,
+            Source::Media(_) | Source::Picture => 0,
         };
         (self.source, ms)
     }
@@ -135,6 +152,7 @@ impl ThumbnailDialog {
                 .iter()
                 .find(|m| m.0 == id)
                 .map_or("Choose…".into(), |m| m.1.clone()),
+            Source::Picture => "The generated picture".into(),
         }
     }
 
@@ -228,6 +246,12 @@ impl ThumbnailDialog {
                     self.base = Some((key, item.clone()));
                 }
                 item
+            }
+            (None, Source::Picture) => {
+                if let Some(item) = &self.picture {
+                    self.base = Some((key, item.clone()));
+                }
+                self.picture.clone()
             }
             (None, Source::Timeline) => None,
         };
@@ -425,6 +449,9 @@ impl ThumbnailDialog {
         let mut pick = self.source;
         widgets::labeled_row(ui, "From", 70.0, |ui| {
             let mut options = vec![(Source::Timeline, "The timeline".to_string())];
+            if self.picture.is_some() {
+                options.push((Source::Picture, "The generated picture".to_string()));
+            }
             options.extend(self.media.iter().map(|m| (Source::Media(m.0), m.1.clone())));
             egui::ComboBox::from_id_salt("thumbnail-source")
                 .selected_text(self.source_name())

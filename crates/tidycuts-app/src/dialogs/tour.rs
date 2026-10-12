@@ -46,7 +46,7 @@ const CARDS: [Card; 5] = [
         icon: ph::SPEAKER_HIGH,
         title: "Make it sound good",
         lines: &[
-            (ph::MAGIC_WAND, "Select a clip and open the Audio tab: Enhance Speech removes background noise and evens out a voice in one click."),
+            (ph::MAGIC_WAND, "Select a clip and open the Audio tab: Enhance Speech removes background noise and calms loud parts of a voice in one click."),
             (ph::SPEAKER_SIMPLE_LOW, "\"Lower Under Speech\" turns music down wherever someone is talking."),
             (ph::CHART_BAR, "The sound meter at the right edge of the timeline is always on. Click the number under it to see how loud the whole video is."),
         ],

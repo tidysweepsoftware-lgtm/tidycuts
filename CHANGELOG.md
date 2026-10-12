@@ -2,6 +2,39 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.0 (a gentler Normalize and the Image Thumbnail Generator)
+
+**Sound**
+- **Normalize** now only ever turns sound down. It listens to how loud a clip is the way
+  people hear it and, when that goes above a limit (-18 LUFS unless you change it with the new
+  **Loudest level** slider, -30 to -8), lowers it smoothly by just enough. Everything at or
+  under the limit goes through exactly as it is, nothing is ever made louder, and peaks stay
+  under -1 dBFS. The 1.2.0 version lifted quiet sound by up to 15 dB and squeezed it with a
+  filter that made normal sound rise and fall, which could be painfully loud. On a test
+  recording of speech at -33, -24, -14 and -8 LUFS, the first two parts came out identical
+  to the original, the other two at about -18 LUFS, nothing was turned up, and normal speech
+  right after the loudest part was lowered by 0.3 dB at most.
+- **Enhance Speech** no longer lifts quiet voices; it uses the new Normalize. The **Leveler**
+  stays as its own tool for lifting quiet speech.
+- Normalize works at once: it no longer waits for a loudness measurement.
+
+**Thumbnails**
+- **Image Thumbnail Generator** (the sparkle button beside the timeline, or Edit menu): type
+  your idea and get four pictures to choose from, drawn on your computer, free and with no
+  account. Pick a look (bold, cinematic, dark, clean or cartoon) and a shape (widescreen,
+  square or vertical). Add up to three **inspiration** pictures and the new ones copy their
+  colours, lighting and mood, or add a photo of a person to draw in (the face comes out
+  similar, not identical). **My photo in a scene** keeps a real photo exact (a product, say):
+  the scene is drawn around it, with its plain white background taken out and a glow and
+  shadow added. **Add words** opens the thumbnail maker with the picture, so the title is
+  always in clear, correctly spelled letters.
+- It draws with FLUX.2 [klein] 4B (Apache 2.0) and Qwen3 4B (Apache 2.0), run by
+  stable-diffusion.cpp (MIT). The first time, a window explains the download and lets you
+  choose **Standard** (5.1 GB) or **High quality** (8.7 GB); nothing is downloaded until you
+  press its button. You can keep both and pick one for each thumbnail, and change or delete
+  them later (Manage, or Preferences > Image generator). On our test computer a picture takes
+  about seven seconds once the models are loaded.
+
 ## 1.2.0 (sound, captions and steadier video)
 
 **Sound**

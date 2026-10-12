@@ -11,7 +11,7 @@ use std::path::Path;
 
 /// A second-order filter section (direct form I).
 #[derive(Clone, Copy, Default)]
-struct Biquad {
+pub(crate) struct Biquad {
     b: [f64; 3],
     a: [f64; 2],
     x: [f64; 2],
@@ -19,7 +19,7 @@ struct Biquad {
 }
 
 impl Biquad {
-    fn run(&mut self, v: f64) -> f64 {
+    pub(crate) fn run(&mut self, v: f64) -> f64 {
         let out = self.b[0] * v + self.b[1] * self.x[0] + self.b[2] * self.x[1]
             - self.a[0] * self.y[0]
             - self.a[1] * self.y[1];
@@ -31,7 +31,7 @@ impl Biquad {
 
 /// The two "K-weighting" filters of BS.1770 at any sample rate: a shelf that
 /// lifts the highs a little, then a high-pass at 38 Hz.
-fn k_weighting(fs: f64) -> [Biquad; 2] {
+pub(crate) fn k_weighting(fs: f64) -> [Biquad; 2] {
     let shelf = {
         // The form used by libebur128; it reproduces the standard's 48 kHz table.
         let (f0, g, q) = (1681.974450955533, 3.999843853973347, 0.7071752369554196);

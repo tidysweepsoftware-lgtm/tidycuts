@@ -180,6 +180,9 @@ pub struct Prefs {
     pub tour_done: bool,
     /// Hearing guard for playback: 0 off, 1 normal (-10 LUFS), 2 careful (-16 LUFS).
     pub hearing_guard: u8,
+    /// The size of the image models the Image Thumbnail Generator uses
+    /// ("standard" or "high").
+    pub imagegen_models: String,
 }
 
 impl Default for Prefs {
@@ -214,6 +217,7 @@ impl Default for Prefs {
             mcp_token: String::new(),
             tour_done: false,
             hearing_guard: 1,
+            imagegen_models: "standard".into(),
         }
     }
 }

@@ -18,8 +18,7 @@ fn main() {
     let a = p.add_clip(ms, t1, Time::from_secs_f64(3.0)).unwrap();
     let music_clip = p.add_clip(mm, t2, Time::ZERO).unwrap();
     let _ = a;
-    let table = Default::default();
-    let found = find_speech(&p, music_clip, table, &AtomicBool::new(false)).expect("find");
+    let found = find_speech(&p, music_clip, &AtomicBool::new(false)).expect("find");
     println!("speech found in {} stretch(es):", found.len());
     for (s, e) in &found {
         println!("  {s:.2} - {e:.2}");

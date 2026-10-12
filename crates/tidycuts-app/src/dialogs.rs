@@ -12,6 +12,7 @@ mod crop;
 mod export;
 mod export_preview;
 pub use export::job_fraction;
+mod imagegen;
 mod import_size;
 mod loudness;
 mod preferences;
@@ -50,6 +51,7 @@ pub struct DialogState {
     loudness: Option<loudness::LoudnessDialog>,
     voiceover: Option<voiceover::VoiceoverDialog>,
     thumbnail: Option<thumbnail::ThumbnailDialog>,
+    imagegen: Option<imagegen::ImageGenDialog>,
     /// Settings of the last export, so a failed one can be retried.
     last_export: Option<export::ExportDialog>,
     /// Start time of the export whose end was already announced.
@@ -131,6 +133,7 @@ impl DialogState {
             || self.loudness.is_some()
             || self.voiceover.is_some()
             || self.thumbnail.is_some()
+            || self.imagegen.is_some()
     }
 }
 
@@ -154,6 +157,13 @@ pub fn updates_come_from_store() -> bool {
 pub fn open_thumbnail(app: &mut TidyCutsApp) {
     let d = thumbnail::ThumbnailDialog::new(app);
     app.dialogs.thumbnail = Some(d);
+}
+
+/// Opens the Image Thumbnail Generator (`models`: on the page that chooses,
+/// downloads and deletes the models).
+pub fn open_imagegen(app: &mut TidyCutsApp, models: bool) {
+    let d = imagegen::ImageGenDialog::new(app, models);
+    app.dialogs.imagegen = Some(d);
 }
 
 /// Draws whichever windows are open. Called once per frame.
@@ -184,6 +194,7 @@ pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     run!(loudness);
     run!(voiceover);
     run!(thumbnail);
+    run!(imagegen);
     // The import question goes on top of everything else.
     run!(import_size);
 }

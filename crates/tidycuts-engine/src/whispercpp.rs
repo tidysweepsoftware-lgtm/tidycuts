@@ -73,11 +73,11 @@ pub fn program_file() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// Where a model downloaded from inside TidyCuts is kept: in the user's own
-/// settings folder, so it survives updates and needs no permission.
-pub fn downloaded_model_path() -> Option<PathBuf> {
+/// The user's own settings folder for TidyCuts, where downloaded models are
+/// kept so they survive updates and need no permission.
+pub(crate) fn settings_dir() -> Option<PathBuf> {
     let home = |var: &str| std::env::var_os(var).map(PathBuf::from);
-    let base = if cfg!(windows) {
+    Some(if cfg!(windows) {
         home("APPDATA")?.join("TidyCuts")
     } else if cfg!(target_os = "macos") {
         home("HOME")?.join("Library/Application Support/TidyCuts")
@@ -85,8 +85,17 @@ pub fn downloaded_model_path() -> Option<PathBuf> {
         home("XDG_CONFIG_HOME")
             .or_else(|| home("HOME").map(|h| h.join(".config")))?
             .join("tidycuts")
-    };
-    Some(base.join("models").join("asr-whisper-cpp").join(MODEL_FILE))
+    })
+}
+
+/// Where a model downloaded from inside TidyCuts is kept.
+pub fn downloaded_model_path() -> Option<PathBuf> {
+    Some(
+        settings_dir()?
+            .join("models")
+            .join("asr-whisper-cpp")
+            .join(MODEL_FILE),
+    )
 }
 
 /// The model file, if it is there: next to the program, or downloaded

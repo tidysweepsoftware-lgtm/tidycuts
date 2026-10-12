@@ -209,7 +209,7 @@ fn main() {
     save(&format!("{out}/scrub.png"), w, h, &px);
 
     // Sound.
-    let mut mixer = Mixer::new(48000, Duration::from_secs(5), Default::default());
+    let mut mixer = Mixer::new(48000, Duration::from_secs(5));
     let mut buf = vec![0f32; 48000 * 2];
     let mut rms = Vec::new();
     for s in 0..6 {
@@ -241,7 +241,6 @@ fn main() {
         &es,
         comp.renderer().clone(),
         &statics,
-        Default::default(),
         &|_| None,
         &cancel,
         |_| {},

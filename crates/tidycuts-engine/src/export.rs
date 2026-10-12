@@ -4,7 +4,7 @@
 
 use crate::frames::{decode_size, StreamFrames};
 use crate::levels::AudioLevels;
-use crate::mixer::{LoudnessTable, Mixer};
+use crate::mixer::Mixer;
 use crate::plan::Planner;
 use crate::statics::Statics;
 use std::io::Write;
@@ -604,11 +604,10 @@ fn write_wav(
     range: (Time, Time),
     sr: u32,
     path: &Path,
-    loudness: LoudnessTable,
     cancel: &AtomicBool,
     mut progress: impl FnMut(f64),
 ) -> std::io::Result<()> {
-    let mut mixer = Mixer::new(sr, Duration::from_secs(30), loudness);
+    let mut mixer = Mixer::new(sr, Duration::from_secs(30));
     let total = ((range.1 - range.0).as_secs_f64() * sr as f64).round() as u64;
     let mut f = std::io::BufWriter::new(std::fs::File::create(path)?);
     let data_len = (total * 2 * 4) as u32;
@@ -707,7 +706,6 @@ pub fn chapters_metadata(markers: &[Marker], range: (Time, Time)) -> Option<Stri
 pub fn measure_project_loudness(
     project: &Project,
     range: Option<(Time, Time)>,
-    loudness: LoudnessTable,
     cancel: &AtomicBool,
 ) -> Result<crate::loudness::Report, String> {
     let range = range.unwrap_or((Time::ZERO, project.duration()));
@@ -723,7 +721,7 @@ pub fn measure_project_loudness(
     ));
     std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
     let wav = tmp.join("mix.wav");
-    let result = write_wav(project, range, 48_000, &wav, loudness, cancel, |_| {})
+    let result = write_wav(project, range, 48_000, &wav, cancel, |_| {})
         .map_err(|e| {
             if cancel.load(Ordering::Relaxed) {
                 "Cancelled.".to_string()
@@ -743,7 +741,6 @@ pub fn export(
     s: &ExportSettings,
     renderer: Arc<Renderer>,
     statics: &Statics,
-    loudness: LoudnessTable,
     auto_grade: &dyn Fn(&tidycuts_core::MediaItem) -> Option<Grade>,
     cancel: &AtomicBool,
     mut progress: impl FnMut(ExportProgress),
@@ -770,7 +767,7 @@ pub fn export(
     let wav = tmp.join("mix.wav");
     let sound = s.container.audio_codec() != AudioCodec::None && has_sound(project);
     if sound {
-        write_wav(project, range, s.sample_rate, &wav, loudness, cancel, |f| {
+        write_wav(project, range, s.sample_rate, &wav, cancel, |f| {
             progress(ExportProgress {
                 stage: "Mixing audio",
                 done: (f * 1000.0) as u64,

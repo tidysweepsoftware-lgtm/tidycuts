@@ -86,7 +86,6 @@ impl Engine {
         let playback = Playback::new(
             Arc::new(Project::default()),
             statics.clone(),
-            analysis.loudness.clone(),
             grades,
             analysis.levels.clone(),
             repaint,

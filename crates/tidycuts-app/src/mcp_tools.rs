@@ -241,11 +241,11 @@ pub fn tool_list() -> Vec<Tool> {
         ),
         tool(
             "enhance_speech",
-            "One call for a talking voice that sounds bad: removes background noise (a trained model keeps the voice and turns down everything else), cuts rumble, lifts quiet speech and holds loud parts, adds a podcast tone and a peak limiter. Takes a few seconds the first time because the cleaned sound is prepared. Use update_clip's audio.voice_clean, audio.leveler and audio.limiter to tune the parts.",
+            "One call for a talking voice that sounds bad: removes background noise (a trained model keeps the voice and turns down everything else), cuts rumble, adds a podcast tone and turns on Normalize (which only turns down what is too loud; it never makes a voice louder). Takes a few seconds the first time because the cleaned sound is prepared. Use update_clip's audio.voice_clean, audio.normalize and audio.normalize_level to tune the parts.",
             json!({
                 "clip": id("the clip with the voice"),
                 "noise_removal": {"type": "number", "description": "Voice clean-up amount, 0 to 100 (default 70)."},
-                "level": {"type": "number", "description": "How much quiet speech may be lifted, 0 to 100 (default 45)."},
+                "level": {"type": "number", "description": "Optional. Turns on the Leveler, which lifts quiet speech by up to this much, 0 to 100. Off unless given, because it makes quiet sound louder."},
             }),
             &["clip"],
             false,
@@ -1369,13 +1369,8 @@ fn auto_duck(app: &mut TidyCutsApp, a: &Args) -> Out {
         c.duration().as_secs_f64(),
         c.volume.value,
     );
-    let table = app
-        .engine
-        .as_ref()
-        .map(|e| e.analysis.loudness.clone())
-        .unwrap_or_default();
     let never = std::sync::atomic::AtomicBool::new(false);
-    let speech = tidycuts_engine::autoduck::find_speech(&app.project, id, table, &never)?;
+    let speech = tidycuts_engine::autoduck::find_speech(&app.project, id, &never)?;
     let local: Vec<(f64, f64)> = speech.iter().map(|(s, e)| (s - start, e - start)).collect();
     let points = crate::autoduck::keyframes(&local, len, base, lower);
     if points.is_empty() {
@@ -1400,13 +1395,8 @@ fn auto_duck(app: &mut TidyCutsApp, a: &Args) -> Out {
 }
 
 fn measure_loudness(app: &mut TidyCutsApp) -> Out {
-    let table = app
-        .engine
-        .as_ref()
-        .map(|e| e.analysis.loudness.clone())
-        .unwrap_or_default();
     let never = std::sync::atomic::AtomicBool::new(false);
-    let r = tidycuts_engine::export::measure_project_loudness(&app.project, None, table, &never)?;
+    let r = tidycuts_engine::export::measure_project_loudness(&app.project, None, &never)?;
     Ok(ToolResult::json(&json!({
         "integrated_lufs": r.integrated,
         "true_peak_dbtp": r.true_peak,

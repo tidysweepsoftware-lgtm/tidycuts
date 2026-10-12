@@ -1,6 +1,6 @@
 # Privacy policy
 
-*TidyCuts 1.2.0, from TidySweep Software. Last updated 12 October 2026.*
+*TidyCuts 1.3.0, from TidySweep Software. Last updated 12 October 2026.*
 
 **Short version: TidyCuts doesn't collect, send or share any information about
 you. It has no account, no ads and no tracking.**
@@ -10,13 +10,15 @@ you. It has no account, no ads and no tracking.**
 - **It collects nothing.** TidyCuts has no analytics, no crash reporting that
   sends anything out, and no sign-in. We never receive your videos, your
   projects, your name, your email address or anything about your computer.
-- **It makes no network requests of its own.** It works fully offline. There are two
-  exceptions, and both happen only when you press the button. **Help > Check for
+- **It makes no network requests of its own.** It works fully offline. There are three
+  exceptions, and each happens only when you press its button. **Help > Check for
   Updates** asks GitHub for the newest version number (the same as opening the releases
   page in a browser). **Download the speech model** in the Auto Captions window downloads
   the 574 MB Whisper speech model once, from this project's GitHub releases (or, if that is
   unavailable, from Hugging Face); after that captions are made on your computer without a
-  connection. Nothing about you or your projects is sent in either case. The Microsoft Store
+  connection. **Download** in the Image Thumbnail Generator downloads the image models you choose (5.1 GB or 8.7 GB)
+  once, from Hugging Face; after that pictures are made on your computer, and your ideas and photos never
+  leave it. Nothing about you or your projects is sent in any of the three cases. The Microsoft Store
   version doesn't have the update menu item, because the Store updates it.
 - **Your files stay where you put them.** TidyCuts reads the videos, pictures and
   sounds you choose, and writes the projects and exports you ask for, in the

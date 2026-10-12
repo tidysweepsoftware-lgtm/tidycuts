@@ -61,6 +61,24 @@ copyright holders may not be used to endorse products made with it.
   On Windows they are the official release build; on the Mac the release workflow builds
   them from the same source.
 
+## Image generation (Image Thumbnail Generator)
+
+- **FLUX.2 [klein] 4B** by Black Forest Labs, under the **Apache 2.0 licence**:
+  <https://huggingface.co/black-forest-labs/FLUX.2-klein-4B>. TidyCuts uses its GGUF
+  quantisations made by leejet (`flux-2-klein-4b-Q4_0.gguf` and `flux-2-klein-4b-Q8_0.gguf`,
+  <https://huggingface.co/leejet/FLUX.2-klein-4B-GGUF>) and its picture decoder (`vae/` of the
+  same repository). They are downloaded by the app when the person chooses them.
+- **Qwen3 4B** by Alibaba Cloud (the Qwen team), under the **Apache 2.0 licence**:
+  <https://huggingface.co/Qwen/Qwen3-4B>, in the GGUF quantisations of Unsloth
+  (`Qwen3-4B-Q4_K_M.gguf`, `Qwen3-4B-Q8_0.gguf`,
+  <https://huggingface.co/unsloth/Qwen3-4B-GGUF>). It reads the idea for FLUX.2.
+  Downloaded with the model above.
+- **stable-diffusion.cpp** by leejet and contributors, under the **MIT licence**:
+  <https://github.com/leejet/stable-diffusion.cpp>. Its `sd-cli` program and libraries (ggml)
+  come with TidyCuts in the `imagegen` folder and run the models on the computer. On Windows
+  they are the official Vulkan release build; on the Mac the release workflow builds them
+  from the same source.
+
 ## Fonts
 
 All fonts are in `crates/tidycuts-render/fonts/` and are free for any use,

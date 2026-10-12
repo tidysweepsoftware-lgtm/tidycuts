@@ -6,6 +6,7 @@
   Result:  <Dest>/models/mossformer2_se_48k.onnx
            <Dest>/onnxruntime/onnxruntime.dll (and its licence files)
            <Dest>/whisper-cpp/whisper-cli.exe (and its libraries), for Auto Captions
+           <Dest>/imagegen/sd-cli.exe (and its libraries), for the Image Thumbnail Generator
 
   The versions and checksums are in packaging/voice-assets.txt. A download whose
   checksum is wrong stops the script. Without -Repo the repository is read from
@@ -66,5 +67,13 @@ New-Item -ItemType Directory -Force "$Dest\whisper-cpp" | Out-Null
 Copy-Item (Join-Path $wsrc.FullName "whisper-cli.exe") "$Dest\whisper-cpp\" -Force
 Get-ChildItem $wsrc.FullName -Filter *.dll | ForEach-Object { Copy-Item $_.FullName "$Dest\whisper-cpp\" -Force }
 Invoke-WebRequest "https://raw.githubusercontent.com/ggml-org/whisper.cpp/$($cfg.WHISPER_CPP_TAG)/LICENSE" -OutFile "$Dest\whisper-cpp\WHISPER-CPP-LICENSE.txt"
+# The program that draws pictures for the Image Thumbnail Generator (stable-diffusion.cpp, MIT).
+# Its models are downloaded by TidyCuts itself when the person chooses them.
+$iz = Join-Path $work "imagegen.zip"
+Invoke-WebRequest $cfg.SD_CPP_WIN_URL -OutFile $iz
+Check $iz $cfg.SD_CPP_WIN_SHA256
+New-Item -ItemType Directory -Force "$Dest\imagegen" | Out-Null
+Expand-Archive $iz -DestinationPath "$Dest\imagegen" -Force
+Invoke-WebRequest "https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/$($cfg.SD_CPP_TAG)/LICENSE" -OutFile "$Dest\imagegen\STABLE-DIFFUSION-CPP-LICENSE.txt"
 [IO.Directory]::Delete($work, $true)
 Write-Host "Studio Voice files are in $Dest"

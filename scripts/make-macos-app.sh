@@ -32,12 +32,20 @@ if [ -x whisper-macos/whisper-cli ]; then
   cp whisper-macos/whisper-cli "$app/Contents/Resources/whisper-cpp/"
   cp whisper-macos/WHISPER-CPP-LICENSE.txt "$app/Contents/Resources/whisper-cpp/" 2>/dev/null || true
 fi
+# Image Thumbnail Generator: the stable-diffusion.cpp program built by the release
+# workflow into ./sdcpp-macos (its models are downloaded by the app when the person
+# chooses them).
+if [ -x sdcpp-macos/sd-cli ]; then
+  mkdir -p "$app/Contents/Resources/imagegen"
+  cp sdcpp-macos/sd-cli "$app/Contents/Resources/imagegen/"
+  cp sdcpp-macos/STABLE-DIFFUSION-CPP-LICENSE.txt "$app/Contents/Resources/imagegen/" 2>/dev/null || true
+fi
 # Sign everything ad hoc ("-"): it needs no developer account, and a sealed,
 # signed bundle is what macOS expects. An unsigned downloaded app is often
 # reported as "damaged and can't be opened". (Apple's own Developer ID
 # signing and notarization would remove the "can't check it" prompt too.)
 if command -v codesign >/dev/null 2>&1; then
-  for f in "$app/Contents/Resources/ffmpeg" "$app/Contents/Resources/ffprobe" "$app/Contents/Resources/whisper-cpp/whisper-cli" "$app/Contents/Frameworks/libonnxruntime.dylib"; do
+  for f in "$app/Contents/Resources/ffmpeg" "$app/Contents/Resources/ffprobe" "$app/Contents/Resources/whisper-cpp/whisper-cli" "$app/Contents/Resources/imagegen/sd-cli" "$app/Contents/Frameworks/libonnxruntime.dylib"; do
     if [ -f "$f" ]; then codesign --force --options runtime --sign "${SIGN_IDENTITY:--}" "$f"; fi
   done
   codesign --force --deep --options runtime --sign "${SIGN_IDENTITY:--}" "$app"

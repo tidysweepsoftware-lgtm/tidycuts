@@ -4,24 +4,18 @@
 
 use crate::audio_fx::clip_filters;
 use crate::decode::{AudioParams, AudioStream};
+use crate::level_guard::LevelGuard;
 use crate::limiter::PeakLimiter;
 use crate::loudness::Momentary;
 use crate::stretch::Stretcher;
 use crate::voice_clean;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tidycuts_core::{
     Clip, ClipId, MediaItem, MediaKind, Project, SpeedRamp, Time, TrackId, TrackKind,
 };
-
-/// What a Normalize gain was measured on: the file, the stream and a hash of
-/// the part used and the audio settings (so it is measured again when they change).
-pub type LoudKey = (PathBuf, u32, u64);
-
-/// Normalize gains, measured as needed.
-pub type LoudnessTable = Arc<Mutex<HashMap<LoudKey, f32>>>;
 
 struct Voice {
     stream: AudioStream,
@@ -42,7 +36,10 @@ struct Voice {
     duck: f32,
     /// The voice-cleaned copy of the sound this stream reads, when there is one.
     cleaned: Option<PathBuf>,
-    /// Holds the peaks of a clip with Normalize on, after its last gain.
+    /// Normalize: turns down what is louder than the clip's level (it never
+    /// turns anything up), after the clip's last gain...
+    guard: Option<LevelGuard>,
+    /// ...and then holds the peaks.
     limiter: Option<PeakLimiter>,
 }
 
@@ -92,15 +89,12 @@ impl Meters {
 pub struct Mixer {
     pub sample_rate: u32,
     voices: HashMap<ClipId, Voice>,
-    pub loudness: LoudnessTable,
     /// How long to wait for a late decoder: short when playing live, long
     /// when exporting.
     pub wait: Duration,
     scratch: Vec<f32>,
     /// Where to report levels, when something is watching.
     pub meters: Option<Arc<Meters>>,
-    /// Files whose loudness is being measured in the background.
-    measuring: HashSet<LoudKey>,
     /// The live loudness reading of what comes out.
     momentary: Momentary,
     /// The hearing guard: the loudest the mix may get, in LUFS, or `None`
@@ -182,15 +176,13 @@ fn guard_target(lufs: Option<f32>, ceiling: f32) -> f32 {
 }
 
 impl Mixer {
-    pub fn new(sample_rate: u32, wait: Duration, loudness: LoudnessTable) -> Mixer {
+    pub fn new(sample_rate: u32, wait: Duration) -> Mixer {
         Mixer {
             sample_rate,
             voices: HashMap::new(),
-            loudness,
             wait,
             scratch: Vec::new(),
             meters: None,
-            measuring: HashSet::new(),
             momentary: Momentary::new(sample_rate),
             guard_ceiling: None,
             guard_gain: 1.0,
@@ -222,46 +214,6 @@ impl Mixer {
             voice_clean::Status::Ready(p) => Some(p),
             _ => None,
         }
-    }
-
-    /// The Normalize gain for a clip: measured on the clip's sound after its
-    /// own audio settings, so a clip that has already been lifted or cleaned
-    /// is not lifted twice. A render measures it on the spot; live playback
-    /// starts the measurement in the background and plays at the clip's own
-    /// level until it is done.
-    fn normalize_gain(&mut self, clip: &Clip, media: &MediaItem, cleaned: Option<&PathBuf>) -> f32 {
-        use std::hash::{Hash, Hasher};
-        let filters = clip_filters(clip, self.sample_rate);
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        (clip.source_in, clip.source_out).hash(&mut h);
-        filters.hash(&mut h);
-        cleaned.hash(&mut h);
-        let stream = clip.audio.stream.min(media.audio_streams.saturating_sub(1));
-        let key: LoudKey = (media.path.clone(), stream, h.finish());
-        if let Some(g) = self.loudness.lock().unwrap().get(&key) {
-            return *g;
-        }
-        let (path, s) = match cleaned {
-            Some(p) => (p.clone(), 0),
-            None => (media.path.clone(), stream),
-        };
-        let (from, len) = (
-            clip.source_in.as_secs_f64(),
-            (clip.source_out - clip.source_in).as_secs_f64(),
-        );
-        if self.exporting() {
-            let g = measure_for_normalize(&path, s, from, len, &filters).unwrap_or(1.0);
-            self.loudness.lock().unwrap().insert(key, g);
-            return g;
-        }
-        if self.measuring.insert(key.clone()) {
-            let table = self.loudness.clone();
-            std::thread::spawn(move || {
-                let g = measure_for_normalize(&path, s, from, len, &filters).unwrap_or(1.0);
-                table.lock().unwrap().insert(key, g);
-            });
-        }
-        1.0
     }
 
     /// Forgets every decoder (after a seek).
@@ -326,6 +278,7 @@ impl Mixer {
             used: true,
             duck: 1.0,
             cleaned,
+            guard: None,
             limiter: None,
         }
     }
@@ -376,14 +329,18 @@ impl Mixer {
                 let voice = self.open(c, s.media, at.max(c.start));
                 self.voices.insert(c.id, voice);
             }
-            let norm = if c.audio.normalize {
-                self.normalize_gain(c, s.media, cleaned.as_ref())
-            } else {
-                1.0
-            };
             let wait = self.wait;
             let voice = self.voices.get_mut(&c.id).unwrap();
             voice.used = true;
+            if c.audio.normalize {
+                if let Some(g) = &mut voice.guard {
+                    g.set_ceiling(c.audio.normalize_level);
+                }
+            } else {
+                // Switched off: start fresh if it is switched on again.
+                voice.guard = None;
+                voice.limiter = None;
+            }
             // Where in this block the clip starts and stops.
             let first = ((c.start - at).as_secs_f64() * sr).round().max(0.0) as usize;
             let last = (((c.end() - at).as_secs_f64() * sr).round().max(0.0) as usize).min(frames);
@@ -420,13 +377,19 @@ impl Mixer {
                 let j = (i + step).min(n);
                 let t_lt = (at + Time::from_secs_f64((first + i) as f64 / sr)) - c.start;
                 let vol = (c.volume.value_at(t_lt) / 100.0).max(0.0) as f32;
-                let g = vol * fade_gain(c, t_lt.as_secs_f64()) * norm * s.track_gain;
+                let g = vol * fade_gain(c, t_lt.as_secs_f64()) * s.track_gain;
                 let duck = duck_from + (ducked - duck_from) * (j as f32 / n as f32);
                 for k in i..j {
                     let (l, r) = (self.scratch[k * 2], self.scratch[k * 2 + 1]);
                     let (mut l, mut r) = (l * g, r * g);
                     if c.audio.normalize {
-                        // Whatever the gain did, nothing goes into the red.
+                        // Anything louder than the clip's level is turned
+                        // down; everything else goes through as it is...
+                        let guard = voice.guard.get_or_insert_with(|| {
+                            LevelGuard::new(self.sample_rate, c.audio.normalize_level)
+                        });
+                        [l, r] = guard.process([l, r]);
+                        // ...and whatever the gain did, nothing goes into the red.
                         let lim = voice
                             .limiter
                             .get_or_insert_with(|| PeakLimiter::new(self.sample_rate, 0.89));
@@ -491,91 +454,132 @@ impl Mixer {
     }
 }
 
-/// The loudness "Normalize" aims for. Gentle on purpose: comfortable on
-/// headphones, and streaming sites will not turn it down much.
-pub const NORMALIZE_LUFS: f64 = -16.0;
-/// Normalize never lifts a clip by more than this (a very quiet recording
-/// would otherwise bring up its noise) and never lowers it by more than the
-/// second figure.
-const NORMALIZE_MAX_BOOST_DB: f64 = 15.0;
-const NORMALIZE_MAX_CUT_DB: f64 = 18.0;
-
-/// The gain that moves a clip with the measured loudness `lufs` to the
-/// Normalize target: up by at most 15 dB (a very quiet recording would
-/// otherwise bring up its noise), down by at most 18 dB. The peaks are held by
-/// the limiter that follows. Silence is left alone.
-pub fn normalize_gain_for(lufs: f64) -> f32 {
-    if !lufs.is_finite() || lufs < -70.0 {
-        return 1.0;
-    }
-    let db = (NORMALIZE_LUFS - lufs).clamp(-NORMALIZE_MAX_CUT_DB, NORMALIZE_MAX_BOOST_DB);
-    10f64.powf(db / 20.0) as f32
-}
-
-/// Measures the loudness of a clip as it will sound after its own audio
-/// settings (the filters), over the part of the file it uses, and returns the
-/// Normalize gain.
-fn measure_for_normalize(
-    path: &std::path::Path,
-    stream: u32,
-    from: f64,
-    len: f64,
-    filters: &[String],
-) -> Option<f32> {
-    let tools = tidycuts_media::Tools::get().ok()?;
-    let mut cmd = std::process::Command::new(&tools.ffmpeg);
-    cmd.args([
-        "-hide_banner",
-        "-nostdin",
-        "-ss",
-        &format!("{:.6}", from.max(0.0)),
-    ]);
-    cmd.args(["-t", &format!("{:.6}", len.max(0.1))]);
-    cmd.arg("-i").arg(path);
-    let mut chain = filters.to_vec();
-    chain.push("loudnorm=I=-16:TP=-1:print_format=json".into());
-    cmd.args([
-        "-map",
-        &format!("0:a:{stream}?"),
-        "-af",
-        &chain.join(","),
-        "-f",
-        "null",
-        "-",
-    ]);
-    cmd.stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
-    let out = cmd.output().ok()?;
-    let text = String::from_utf8_lossy(&out.stderr);
-    let start = text.rfind('{')?;
-    let json: serde_json::Value = serde_json::from_str(&text[start..text.rfind('}')? + 1]).ok()?;
-    let num = |k: &str| -> Option<f64> { json.get(k)?.as_str()?.parse().ok() };
-    Some(normalize_gain_for(num("input_i")?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// A project with one clip of a 1 kHz stereo tone of amplitude `amp` and
+    /// `secs` seconds, or `None` without ffmpeg.
+    fn tone_clip(amp: f32, secs: u32) -> Option<(Project, ClipId, std::path::PathBuf)> {
+        let tools = tidycuts_media::Tools::get().ok()?;
+        // Tests run side by side, so every call gets a folder of its own.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "tidycuts-norm-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&dir).ok()?;
+        let wav = dir.join("tone.wav");
+        let ok = tools
+            .ffmpeg_cmd()
+            .args(["-y", "-f", "lavfi"])
+            .args(["-i", &format!("sine=frequency=1000:duration={secs}")])
+            // The sine source is 0.125 loud.
+            .args([
+                "-af",
+                &format!("volume={}", amp * 8.0),
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+            ])
+            .arg(&wav)
+            .status()
+            .ok()?
+            .success();
+        if !ok {
+            return None;
+        }
+        let len = Time::from_secs_f64(f64::from(secs));
+        let mut p = Project::new("norm");
+        let mut m = MediaItem::new(wav, MediaKind::Audio, len);
+        m.has_audio = true;
+        let media = p.add_media(m);
+        let track = p.audio_track_for(Time::ZERO, len).unwrap();
+        let clip = p.add_clip(media, track, Time::ZERO).unwrap();
+        Some((p, clip, dir))
+    }
+
+    /// Mixes the first `secs` seconds of a project the way an export does.
+    fn render(p: &Project, secs: f64) -> Vec<f32> {
+        let mut mixer = Mixer::new(48_000, Duration::from_secs(10));
+        let mut all = Vec::new();
+        let mut buf = vec![0f32; 4800 * 2];
+        let mut t = 0.0;
+        while t < secs {
+            mixer.mix(p, Time::from_secs_f64(t), &mut buf);
+            all.extend_from_slice(&buf);
+            t += 0.1;
+        }
+        all
+    }
+
+    fn lufs_of(interleaved: &[f32]) -> f32 {
+        let mut m = Momentary::new(48_000);
+        m.push(interleaved);
+        m.lufs().unwrap_or(-99.0)
+    }
+
     #[test]
-    fn normalize_moves_every_clip_to_the_target_within_sensible_limits() {
-        // A very quiet clip is lifted by 15 dB at most, not the 30 it would need.
-        let g = normalize_gain_for(-46.0);
-        assert!((20.0 * g.log10() - 15.0).abs() < 0.01, "{g}");
-        // A loud clip is turned down, a very loud one by 18 dB at most.
-        assert!(normalize_gain_for(-8.0) < 1.0);
-        assert!((20.0 * normalize_gain_for(0.0).log10() + 16.0).abs() < 0.01);
-        assert!((20.0 * normalize_gain_for(10.0).log10() + 18.0).abs() < 0.01);
-        // On target: no change.
-        assert!((normalize_gain_for(-16.0) - 1.0).abs() < 1e-6);
-        // Silence is left alone.
-        assert_eq!(normalize_gain_for(-90.0), 1.0);
-        assert_eq!(normalize_gain_for(f64::NAN), 1.0);
+    fn normalize_turns_a_loud_clip_down_to_its_level_and_a_quiet_one_not_at_all() {
+        let Some((mut loud, clip, dir)) = tone_clip(0.5, 4) else {
+            eprintln!("no ffmpeg here; skipping");
+            return;
+        };
+        let off = render(&loud, 4.0);
+        let before = lufs_of(&off[off.len() - 48_000 * 2..]);
+        loud.clip_mut(clip).unwrap().audio.normalize = true;
+        let on = render(&loud, 4.0);
+        let after = lufs_of(&on[on.len() - 48_000 * 2..]);
+        // The tone is about -9 LUFS (the mono file is spread over two channels,
+        // 3 dB down each); the default level is -18 LUFS.
+        assert!(before > -10.0, "{before}");
+        assert!((after + 18.0).abs() < 0.7, "{after}");
+        // A different level moves it with it.
+        loud.clip_mut(clip).unwrap().audio.normalize_level = -12.0;
+        let on = render(&loud, 4.0);
+        assert!((lufs_of(&on[on.len() - 48_000 * 2..]) + 12.0).abs() < 0.7);
+        // Nothing is ever louder than the clip was (the limiter's delay moves
+        // the waves a little, so compare the loudest points).
+        let top = |v: &[f32]| v.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!(top(&on) <= top(&off) + 1e-4);
+        let _ = std::fs::remove_dir_all(dir);
+
+        // A quiet clip (-26 LUFS) comes out exactly as it went in, only
+        // later by the limiter's look-ahead of two and a half milliseconds.
+        let Some((mut quiet, clip, dir)) = tone_clip(0.05, 3) else {
+            return;
+        };
+        let off = render(&quiet, 3.0);
+        quiet.clip_mut(clip).unwrap().audio.normalize = true;
+        let on = render(&quiet, 3.0);
+        let delay = PeakLimiter::new(48_000, 0.89).delay_frames();
+        for i in 4_000..off.len() / 2 - 4_000 {
+            assert!(
+                (on[(i + delay) * 2] - off[i * 2]).abs() < 1e-6,
+                "frame {i}: {} vs {}",
+                on[(i + delay) * 2],
+                off[i * 2]
+            );
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn switching_normalize_off_returns_the_clip_to_its_own_level() {
+        let Some((mut p, clip, dir)) = tone_clip(0.5, 2) else {
+            eprintln!("no ffmpeg here; skipping");
+            return;
+        };
+        let plain = render(&p, 2.0);
+        p.clip_mut(clip).unwrap().audio.normalize = true;
+        let on = render(&p, 2.0);
+        assert!(lufs_of(&on[on.len() - 48_000..]) < lufs_of(&plain[plain.len() - 48_000..]) - 6.0);
+        p.clip_mut(clip).unwrap().audio.normalize = false;
+        let off = render(&p, 2.0);
+        assert_eq!(plain, off);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -647,7 +651,7 @@ mod tests {
     /// The loudest sample of a second block mixed from the start.
     fn loudest(p: &Project) -> (f32, MeterState) {
         let meters = Arc::new(Meters::default());
-        let mut mixer = Mixer::new(48_000, Duration::from_secs(5), Default::default());
+        let mut mixer = Mixer::new(48_000, Duration::from_secs(5));
         mixer.meters = Some(meters.clone());
         let mut out = vec![0f32; 4800 * 2];
         // The first block starts the decoders; the second is real sound.

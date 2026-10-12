@@ -161,6 +161,9 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
             if item(ui, "Take Snapshot", "", true) {
                 app.take_snapshot();
             }
+            if item(ui, "Image Thumbnail Generator…", "", true) {
+                crate::dialogs::open_imagegen(app, false);
+            }
             if item(ui, "Make Thumbnail…", "", true) {
                 crate::dialogs::open_thumbnail(app);
             }

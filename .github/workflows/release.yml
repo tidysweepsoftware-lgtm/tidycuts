@@ -157,10 +157,40 @@ jobs:
           name: whisper-macos
           path: whisper-macos
 
+  sdcpp-macos:
+    name: stable-diffusion.cpp for the Mac (MIT)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'windows' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The version of stable-diffusion.cpp to build
+        id: ver
+        run: echo "tag=$(grep -m1 '^SD_CPP_TAG=' packaging/voice-assets.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: sdcpp-macos
+          key: sdcpp-macos-${{ steps.ver.outputs.tag }}
+      - name: Build sd-cli (Apple silicon, Metal)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --recursive --branch "${{ steps.ver.outputs.tag }}" https://github.com/leejet/stable-diffusion.cpp
+          cd stable-diffusion.cpp
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_METAL=ON -DBUILD_SHARED_LIBS=OFF             -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build -j --config Release --target sd-cli
+          mkdir -p ../sdcpp-macos
+          cp build/bin/sd-cli ../sdcpp-macos/
+          cp LICENSE ../sdcpp-macos/STABLE-DIFFUSION-CPP-LICENSE.txt
+      - run: ./sdcpp-macos/sd-cli --help | head -3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdcpp-macos
+          path: sdcpp-macos
+
   macos:
     name: Mac app and disk image
     runs-on: macos-latest
-    needs: [ffmpeg-macos, whisper-macos]
+    needs: [ffmpeg-macos, whisper-macos, sdcpp-macos]
     env:
       # Optional: an Apple "Developer ID Application" certificate (see docs/signing.md).
       MAC_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 }}
@@ -188,6 +218,12 @@ jobs:
           name: whisper-macos
           path: whisper-macos
       - run: chmod +x whisper-macos/whisper-cli || true
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: sdcpp-macos
+          path: sdcpp-macos
+      - run: chmod +x sdcpp-macos/sd-cli || true
       - run: cargo build --release -p tidycuts-app
       # Studio Voice: the voice model and ONNX Runtime, kept in ./voice-assets until
       # make-macos-app.sh moves them into the app (see packaging/voice-assets.txt).

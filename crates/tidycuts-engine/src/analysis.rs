@@ -1,9 +1,8 @@
-//! One-off measurements done in the background: loudness for "Normalize"
-//! and automatic levels and white balance for "Auto Enhance".
+//! One-off measurements done in the background: automatic levels and white
+//! balance for "Auto Enhance".
 
 use crate::decode::{decode_still, VideoParams};
 use crate::levels::AudioLevels;
-use crate::mixer::LoudnessTable;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -13,7 +12,6 @@ use tidycuts_render::{Grade, Pixels};
 
 #[derive(Clone, Default)]
 pub struct Analysis {
-    pub loudness: LoudnessTable,
     /// Sound levels for audio visualizers.
     pub levels: AudioLevels,
     grades: Arc<Mutex<HashMap<PathBuf, Grade>>>,

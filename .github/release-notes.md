@@ -1,7 +1,18 @@
 ## TidyCuts __VERSION__
 
-Better sound, captions that work on soft voices, and steadier video, in the free and
+A gentler Normalize and a thumbnail generator that draws from your idea, in the free and
 open-source video editor for Windows and Mac:
+
+- **Image Thumbnail Generator**: type an idea and get four pictures to choose from, drawn on
+  your computer for free. Add inspiration pictures to copy a look, draw a person in, or place a
+  real photo (a product) into a drawn scene. The first time you choose which models to
+  download (Standard 5.1 GB or High quality 8.7 GB), and nothing downloads until you press the
+  button. Then **Add words** puts your title on in clear letters.
+- **Normalize** now only turns down what is too loud: quiet and normal sound is left exactly as
+  it is, nothing is made louder, and peaks never clip. **Enhance Speech** no longer lifts quiet
+  voices.
+
+From the version before (1.2.0):
 
 - **Normalize** is now one click: it evens out loud and quiet parts, brings the clip to a
   comfortable loudness and never lets it clip. **Enhance Speech** removes background noise
@@ -39,7 +50,7 @@ download is the one we built.
   down and choose **Open Anyway** next to TidyCuts. If macOS says the app is
   "damaged", run `xattr -cr /Applications/TidyCuts.app` once in Terminal.
 
-FFmpeg, ONNX Runtime and the whisper.cpp program are included. Everything TidyCuts makes
+FFmpeg, ONNX Runtime, the whisper.cpp program and the stable-diffusion.cpp program are included. Everything TidyCuts makes
 (titles, effects, filters, stickers, music) is made by TidyCuts itself and is free to use in
 your videos. The fonts and the sample photographs on the library tiles are open licences or
 public domain; they are listed in THIRD-PARTY-NOTICES.md.

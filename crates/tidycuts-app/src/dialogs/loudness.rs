@@ -59,16 +59,10 @@ impl LoudnessDialog {
     fn measure(&self, app: &TidyCutsApp, ctx: &egui::Context) {
         *self.result.lock().unwrap() = None;
         let project = app.project.clone();
-        let table = app
-            .engine
-            .as_ref()
-            .map(|e| e.analysis.loudness.clone())
-            .unwrap_or_default();
         let (result, cancel, ctx) = (self.result.clone(), self.cancel.clone(), ctx.clone());
         cancel.store(false, Ordering::Relaxed);
         std::thread::spawn(move || {
-            let r =
-                tidycuts_engine::export::measure_project_loudness(&project, None, table, &cancel);
+            let r = tidycuts_engine::export::measure_project_loudness(&project, None, &cancel);
             *result.lock().unwrap() = Some(r);
             ctx.request_repaint();
         });

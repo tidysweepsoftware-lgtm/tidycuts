@@ -10,6 +10,8 @@ pub mod decode;
 pub mod detect;
 pub mod export;
 pub mod frames;
+pub mod imagegen;
+pub mod level_guard;
 pub mod levels;
 pub mod limiter;
 pub mod loudness;
