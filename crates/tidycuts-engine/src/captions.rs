@@ -510,6 +510,17 @@ pub fn group_captions(words: &[Word], layout: Layout) -> Vec<Caption> {
             }
         })
         .collect();
+    // A sentence starts with a capital letter, whatever the network wrote.
+    let mut sentence_start = true;
+    for c in &mut captions {
+        if sentence_start {
+            let mut chars = c.text.chars();
+            if let Some(first) = chars.next() {
+                c.text = first.to_uppercase().collect::<String>() + chars.as_str();
+            }
+        }
+        sentence_start = c.text.trim_end().ends_with(['.', '?', '!', '…']);
+    }
     // A caption stays long enough to read and never runs into the next.
     for i in 0..captions.len() {
         let min_end = captions[i].start + 0.9;
@@ -582,6 +593,18 @@ mod tests {
             assert!(pair[0].end < pair[1].start);
         }
         assert!(c.iter().all(|c| c.end - c.start >= 0.3));
+    }
+
+    #[test]
+    fn a_sentence_starts_with_a_capital() {
+        let words = vec![
+            w("welcome", 0.0, 0.4),
+            w("back.", 0.5, 0.9),
+            w("today", 2.5, 2.9),
+        ];
+        let c = group_captions(&words, Layout::default());
+        assert_eq!(c[0].text, "Welcome back.");
+        assert_eq!(c[1].text, "Today");
     }
 
     #[test]

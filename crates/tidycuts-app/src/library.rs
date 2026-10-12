@@ -1441,6 +1441,7 @@ fn catalog_tab(app: &mut TidyCutsApp, ui: &mut egui::Ui, tab: LibraryTab) {
                     .size(12.0),
             );
         });
+        ui.add_space(8.0);
     }
     if matches!(
         tab,

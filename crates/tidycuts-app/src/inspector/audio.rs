@@ -68,7 +68,7 @@ fn enhance(ui: &mut Ui, c: &mut Clip) {
     let detail = if on {
         "On: noise removal, leveling, podcast tone, limiter. Click to switch off."
     } else {
-        "Removes noise, evens out the level, keeps peaks safe."
+        "Cleans up a voice in one click."
     };
     if kit::wide_button(ui, ph::MAGIC_WAND, "Enhance Speech", detail, true).clicked() {
         if on {
