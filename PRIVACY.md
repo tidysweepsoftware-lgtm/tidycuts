@@ -1,6 +1,6 @@
 # Privacy policy
 
-*TidyCuts 1.0.0, from TidySweep Software. Last updated 10 October 2026.*
+*TidyCuts 1.1.0, from TidySweep Software. Last updated 12 October 2026.*
 
 **Short version: TidyCuts doesn't collect, send or share any information about
 you. It has no account, no ads and no tracking.**
@@ -42,6 +42,6 @@ If this ever changes, the change will be shown here and in the
 
 ## Contact
 
-Questions about privacy: [open an issue](../../issues/new/choose) on this page.
+Questions about privacy: write to tidysweepsoftware@gmail.com or [open an issue](../../issues/new/choose) on this page.
 For anything sensitive, use the private **Report a vulnerability** form on the
 Security tab (see [SECURITY.md](SECURITY.md)).
