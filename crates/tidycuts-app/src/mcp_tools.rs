@@ -251,6 +251,45 @@ pub fn tool_list() -> Vec<Tool> {
             false,
         ),
         tool(
+            "transcribe_clip",
+            "Listens to a clip's sound and returns what is said as caption lines with their              times on the timeline (offline, a few seconds). Use it to read or proofread              the speech. English works best; 'multilingual' also hears German, French,              Spanish, Italian, Polish, Russian, Ukrainian, Belarusian and Croatian.",
+            json!({
+                "clip": id("the clip with speech"),
+                "language": {"type": "string", "enum": ["english", "multilingual"], "description": "Default: english when installed."},
+            }),
+            &["clip"],
+            true,
+        ),
+        tool(
+            "add_captions",
+            "Listens to a clip and adds what is said as subtitle titles on a new track, as one              undo step. The captions are normal titles whose text, look and timing can be              changed afterwards. Needs a few seconds.",
+            json!({
+                "clip": id("the clip with speech"),
+                "preset": {"type": "string", "description": "A subtitle title look, e.g. subtitle.classic (see list_catalog titles). Default subtitle.classic."},
+                "language": {"type": "string", "enum": ["english", "multilingual"]},
+                "line_length": {"type": "string", "enum": ["short", "medium", "long"]},
+            }),
+            &["clip"],
+            false,
+        ),
+        tool(
+            "auto_duck",
+            "Lowers a music clip wherever someone is talking on the rest of the timeline: the              speech is found automatically and the music gets volume points that dip before the              voice and come back after it. Takes a few seconds. Needs the music at normal speed.",
+            json!({
+                "clip": id("the music clip"),
+                "lower_db": {"type": "number", "description": "How much to lower it, in decibels (default 12)."},
+            }),
+            &["clip"],
+            false,
+        ),
+        tool(
+            "measure_loudness",
+            "How loud the whole timeline is: integrated loudness in LUFS, the highest peak in              dBTP and the loudness range in LU. Streaming sites aim for -14 LUFS.",
+            json!({}),
+            &[],
+            true,
+        ),
+        tool(
             "sync_by_audio",
             "Lines clips up by their sound (several cameras, or a camera and a recorder, that \
              heard the same thing). The earliest clip stays; the others move. Clips need sound \
@@ -358,6 +397,7 @@ pub fn tool_list() -> Vec<Tool> {
                 "start": secs("Export only from here (optional)."),
                 "end": secs("...to here (optional)."),
                 "quality": {"type": "string", "enum": ["higher", "recommended", "lower"]},
+                "loudness_lufs": {"type": "number", "description": "Bring the sound to this loudness, for example -14 for streaming sites (optional)."},
             }),
             &["path"],
             false,
@@ -438,6 +478,10 @@ fn dispatch(app: &mut TidyCutsApp, tool: &str, a: &Args) -> Out {
         "set_speed" => set_speed(app, a),
         "detach_audio" => detach_audio(app, a),
         "enhance_speech" => enhance_speech(app, a),
+        "auto_duck" => auto_duck(app, a),
+        "transcribe_clip" => transcribe_clip(app, a),
+        "add_captions" => add_captions(app, a),
+        "measure_loudness" => measure_loudness(app),
         "freeze_frame" => freeze_frame(app, a),
         "add_marker" => add_marker(app, a),
         "set_mix" => set_mix(app, a),
@@ -1224,6 +1268,155 @@ fn detach_audio(app: &mut TidyCutsApp, a: &Args) -> Out {
     Ok(ToolResult::json(&created_since(app, &before)))
 }
 
+/// Listens to a clip: the caption lines, in source seconds.
+fn listen(
+    app: &TidyCutsApp,
+    a: &Args,
+    layout: tidycuts_engine::captions::Layout,
+) -> Result<(ClipId, Vec<tidycuts_engine::captions::Caption>), String> {
+    use tidycuts_engine::captions::{self, Model};
+    let id = clip_id(app, a.need_str("clip")?)?;
+    if let Some(why) = crate::captions::unsuitable(app, id) {
+        return Err(why.into());
+    }
+    let models = captions::available_models();
+    let model = match a.str("language") {
+        Some("multilingual") => Model::Multilingual,
+        Some("english") => Model::English,
+        _ => *models
+            .first()
+            .ok_or("The speech files are not installed.")?,
+    };
+    if !models.contains(&model) {
+        return Err("That language's speech model is not installed.".into());
+    }
+    let (_, c) = app.project.clip(id).ok_or("That clip is gone.")?;
+    let media = c
+        .media_id
+        .and_then(|m| app.project.media(m))
+        .ok_or("That clip has no sound file.")?;
+    let stream = c.audio.stream.min(media.audio_streams.saturating_sub(1));
+    let never = std::sync::atomic::AtomicBool::new(false);
+    let words = captions::transcribe(
+        &media.path,
+        stream,
+        (c.source_in.as_secs_f64(), c.source_out.as_secs_f64()),
+        model,
+        &never,
+        |_| {},
+    )?;
+    Ok((id, captions::group_captions(&words, layout)))
+}
+
+fn transcribe_clip(app: &mut TidyCutsApp, a: &Args) -> Out {
+    let (id, caps) = listen(app, a, tidycuts_engine::captions::Layout::default())?;
+    let (_, c) = app.project.clip(id).ok_or("That clip is gone.")?;
+    let (start, src_in, speed) = (
+        c.start.as_secs_f64(),
+        c.source_in.as_secs_f64(),
+        c.speed.max(0.01),
+    );
+    let lines: Vec<Value> = caps
+        .iter()
+        .map(|k| {
+            json!({
+                "start": (k.start - src_in) / speed + start,
+                "end": (k.end - src_in) / speed + start,
+                "text": k.text.replace('\n', " "),
+            })
+        })
+        .collect();
+    Ok(ToolResult::json(&json!({ "lines": lines })))
+}
+
+fn add_captions(app: &mut TidyCutsApp, a: &Args) -> Out {
+    let layout = tidycuts_engine::captions::Layout {
+        max_chars: match a.str("line_length") {
+            Some("short") => 24,
+            Some("long") => 42,
+            _ => 32,
+        },
+        ..Default::default()
+    };
+    let (id, caps) = listen(app, a, layout)?;
+    if caps.is_empty() {
+        return Ok(done("No speech was found in that clip."));
+    }
+    let preset = a.str("preset").unwrap_or("subtitle.classic");
+    if tidycuts_render::catalog::titles::get(preset).is_none() {
+        return Err(format!(
+            "Unknown title look '{preset}'. See list_catalog titles."
+        ));
+    }
+    match app.add_captions(id, &caps, preset) {
+        Some(n) if n > 0 => Ok(done(format!(
+            "Added {n} caption title(s) on a new track. Call get_project to see them."
+        ))),
+        _ => Err("The captions could not be placed on the timeline.".into()),
+    }
+}
+
+fn auto_duck(app: &mut TidyCutsApp, a: &Args) -> Out {
+    let id = clip_id(app, a.need_str("clip")?)?;
+    if let Some(why) = crate::autoduck::unsuitable(app, id) {
+        return Err(why.into());
+    }
+    let lower = a
+        .num("lower_db")?
+        .unwrap_or(crate::autoduck::LOWER_DB)
+        .clamp(1.0, 40.0);
+    let (_, c) = app.project.clip(id).ok_or("That clip is gone.")?;
+    let (start, len, base) = (
+        c.start.as_secs_f64(),
+        c.duration().as_secs_f64(),
+        c.volume.value,
+    );
+    let table = app
+        .engine
+        .as_ref()
+        .map(|e| e.analysis.loudness.clone())
+        .unwrap_or_default();
+    let never = std::sync::atomic::AtomicBool::new(false);
+    let speech = tidycuts_engine::autoduck::find_speech(&app.project, id, table, &never)?;
+    let local: Vec<(f64, f64)> = speech.iter().map(|(s, e)| (s - start, e - start)).collect();
+    let points = crate::autoduck::keyframes(&local, len, base, lower);
+    if points.is_empty() {
+        return Ok(done(
+            "No speech found over this clip, so nothing was lowered.",
+        ));
+    }
+    let n = local.iter().filter(|(s, e)| *e > 0.0 && *s < len).count();
+    app.edit(|p| match p.clip_mut(id) {
+        Some(c) => {
+            c.volume = tidycuts_core::Animatable {
+                value: base,
+                keyframes: points,
+            };
+            true
+        }
+        None => false,
+    });
+    Ok(done(format!(
+        "The clip now lowers {lower} dB under {n} spoken part(s). See its volume keyframes with get_clip."
+    )))
+}
+
+fn measure_loudness(app: &mut TidyCutsApp) -> Out {
+    let table = app
+        .engine
+        .as_ref()
+        .map(|e| e.analysis.loudness.clone())
+        .unwrap_or_default();
+    let never = std::sync::atomic::AtomicBool::new(false);
+    let r = tidycuts_engine::export::measure_project_loudness(&app.project, None, table, &never)?;
+    Ok(ToolResult::json(&json!({
+        "integrated_lufs": r.integrated,
+        "true_peak_dbtp": r.true_peak,
+        "range_lu": r.range,
+        "streaming_target_lufs": -14.0,
+    })))
+}
+
 fn enhance_speech(app: &mut TidyCutsApp, a: &Args) -> Out {
     let id = clip_id(app, a.need_str("clip")?)?;
     let clean = a.num("noise_removal")?.map(|v| v.clamp(0.0, 100.0));
@@ -1472,6 +1665,9 @@ fn export_video(app: &mut TidyCutsApp, a: &Args) -> Out {
         "recommended" => Quality::Recommended,
         other => return Err(format!("Unknown quality '{other}'.")),
     };
+    if let Some(l) = a.num("loudness_lufs")? {
+        s.loudness_target = Some(l.clamp(-40.0, -5.0));
+    }
     s.hardware_encode = app.prefs.hardware_encode;
     s.hardware_decode = app.prefs.hardware_decode;
     if let (Some(from), Some(to)) = (a.opt_time("start")?, a.opt_time("end")?) {

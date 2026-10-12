@@ -25,6 +25,11 @@ jobs:
     # A tag builds both; a hand-started run builds what was chosen.
     if: ${{ inputs.platform != 'mac' }}
     runs-on: windows-latest
+    env:
+      # Optional: with a code-signing certificate stored as these two secrets (see
+      # docs/signing.md) the program and the installer are signed.
+      WIN_CERT: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WIN_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -49,12 +54,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/fetch-voice-assets.ps1 -Dest dist/TidyCuts
+      - name: Sign the program (only when a certificate is set up)
+        if: ${{ env.WIN_CERT != '' }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WIN_CERT))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -like "*\x64\*" } | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $signtool sign /f cert.pfx /p $env:WIN_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist/TidyCuts/TidyCuts.exe
       - name: Build the installer
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging\windows\tidycuts.iss
+      - name: Sign the installer (only when a certificate is set up)
+        if: ${{ env.WIN_CERT != '' }}
+        shell: pwsh
+        run: |
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -like "*\x64\*" } | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $signtool sign /f cert.pfx /p $env:WIN_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 (Get-ChildItem dist/TidyCuts-Setup-*.exe).FullName
       - name: Zip the portable version
         shell: pwsh
         run: |
@@ -110,6 +128,14 @@ jobs:
     name: Mac app and disk image
     runs-on: macos-latest
     needs: ffmpeg-macos
+    env:
+      # Optional: an Apple "Developer ID Application" certificate (see docs/signing.md).
+      MAC_CERT: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+      MAC_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MAC_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     # A Mac app without FFmpeg still works if the person installs it
     # themselves, so a failed FFmpeg build doesn't stop the app.
     if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.platform != 'windows') }}
@@ -130,12 +156,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/fetch-voice-assets.sh voice-assets
+      - name: Import the signing certificate (only when one is set up)
+        if: ${{ env.MAC_CERT != '' }}
+        run: |
+          echo "$MAC_CERT" | base64 --decode > cert.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import cert.p12 -k build.keychain -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          echo "SIGN_IDENTITY=$MAC_SIGN_IDENTITY" >> "$GITHUB_ENV"
       - name: Make the app and the disk image
         run: |
           version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
           echo "VERSION=$version" >> "$GITHUB_ENV"
           bash scripts/make-macos-app.sh target/release/tidycuts dist
           bash scripts/make-macos-dmg.sh dist "dist/TidyCuts-$version-macos.dmg"
+      - name: Notarize with Apple (only when an Apple account is set up)
+        if: ${{ env.MAC_CERT != '' && env.APPLE_ID != '' }}
+        run: |
+          ditto -c -k --keepParent dist/TidyCuts.app notarize.zip
+          xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/TidyCuts.app
+          rm -f "dist/TidyCuts-$VERSION-macos.dmg"
+          bash scripts/make-macos-dmg.sh dist "dist/TidyCuts-$VERSION-macos.dmg"
       - name: Check the app inside the disk image
         run: |
           mount=$(mktemp -d)

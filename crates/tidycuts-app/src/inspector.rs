@@ -165,6 +165,8 @@ pub fn main_tab_of(app: &TidyCutsApp, clip: ClipId) -> Option<&'static str> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     DetachAudio,
+    /// Lower this (music) clip wherever someone talks.
+    AutoDuck,
     SetSpeed(f64),
     /// A speed ramp for the clip, or `None` to remove it.
     SetRamp(Option<tidycuts_core::SpeedRamp>),
@@ -340,6 +342,7 @@ fn run(app: &mut TidyCutsApp, id: ClipId, action: Action) {
             app.selection = vec![id];
             app.detach_audio();
         }
+        Action::AutoDuck => app.start_auto_duck(id, crate::autoduck::LOWER_DB),
         Action::SetSpeed(s) => {
             let same = app
                 .project

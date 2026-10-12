@@ -258,6 +258,10 @@ pub struct ExportSettings {
     /// have them).
     #[serde(default)]
     pub chapters: bool,
+    /// Bring the sound to this loudness (LUFS), for example -14 for streaming
+    /// sites. `None` leaves the level as mixed.
+    #[serde(default)]
+    pub loudness_target: Option<f64>,
 }
 
 impl ExportSettings {
@@ -278,6 +282,7 @@ impl ExportSettings {
             hardware_encode: true,
             hardware_decode: true,
             chapters: true,
+            loudness_target: None,
         }
     }
 
@@ -697,6 +702,40 @@ pub fn chapters_metadata(markers: &[Marker], range: (Time, Time)) -> Option<Stri
     Some(out)
 }
 
+/// Mixes `range` of the project (the whole timeline when `None`) and measures
+/// how loud it is. This is what the Loudness window shows.
+pub fn measure_project_loudness(
+    project: &Project,
+    range: Option<(Time, Time)>,
+    loudness: LoudnessTable,
+    cancel: &AtomicBool,
+) -> Result<crate::loudness::Report, String> {
+    let range = range.unwrap_or((Time::ZERO, project.duration()));
+    if range.1 <= range.0 || !has_sound(project) {
+        return Err("There is no sound on the timeline.".into());
+    }
+    let tmp = std::env::temp_dir().join(format!(
+        "tidycuts-loudness-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis())
+    ));
+    std::fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
+    let wav = tmp.join("mix.wav");
+    let result = write_wav(project, range, 48_000, &wav, loudness, cancel, |_| {})
+        .map_err(|e| {
+            if cancel.load(Ordering::Relaxed) {
+                "Cancelled.".to_string()
+            } else {
+                format!("Could not mix the audio: {e}")
+            }
+        })
+        .and_then(|()| crate::loudness::measure_file(&wav));
+    let _ = std::fs::remove_dir_all(&tmp);
+    result
+}
+
 /// Exports the project. `progress` is called often; `cancel` stops it.
 #[allow(clippy::too_many_arguments)]
 pub fn export(
@@ -809,6 +848,17 @@ pub fn export(
         cmd.args(encoder_args(enc, s));
     }
     if sound {
+        if let Some(target) = s.loudness_target {
+            progress(ExportProgress {
+                stage: "Setting the loudness",
+                done: 0,
+                total: 1000,
+                ..Default::default()
+            });
+            let filter = crate::loudness::normalize_filter(&wav, target)
+                .map_err(|e| format!("Could not set the loudness: {e}"))?;
+            cmd.args(["-af", &filter]);
+        }
         cmd.args(s.container.audio_codec().args(s.audio_kbps));
         cmd.args(["-ar", &s.sample_rate.to_string()]);
     }

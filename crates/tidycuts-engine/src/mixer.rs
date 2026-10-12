@@ -4,6 +4,7 @@
 
 use crate::audio_fx::clip_filters;
 use crate::decode::{AudioParams, AudioStream};
+use crate::loudness::Momentary;
 use crate::stretch::Stretcher;
 use crate::voice_clean;
 use std::collections::{HashMap, HashSet};
@@ -58,6 +59,9 @@ pub struct Meters {
 pub struct MeterState {
     pub tracks: HashMap<TrackId, [f32; 2]>,
     pub master: [f32; 2],
+    /// Momentary loudness (the last 400 ms) of the mix, LUFS; `None` when
+    /// it is quieter than -70.
+    pub lufs: Option<f32>,
 }
 
 impl Meters {
@@ -87,6 +91,8 @@ pub struct Mixer {
     pub meters: Option<Arc<Meters>>,
     /// Files whose loudness is being measured in the background.
     measuring: HashSet<(PathBuf, u32)>,
+    /// The live loudness reading of what comes out.
+    momentary: Momentary,
 }
 
 /// Every clip that sounds at some point in `[from, to)`.
@@ -158,6 +164,7 @@ impl Mixer {
             scratch: Vec::new(),
             meters: None,
             measuring: HashSet::new(),
+            momentary: Momentary::new(sample_rate),
         }
     }
 
@@ -213,6 +220,7 @@ impl Mixer {
     /// Forgets every decoder (after a seek).
     pub fn reset(&mut self) {
         self.voices.clear();
+        self.momentary.reset();
     }
 
     fn open(&self, clip: &Clip, media: &MediaItem, at: Time) -> Voice {
@@ -375,10 +383,12 @@ impl Mixer {
             *s = soft_limit(*s * master);
             peak[i % 2] = peak[i % 2].max(s.abs());
         }
+        self.momentary.push(out);
         if let Some(m) = &self.meters {
             m.publish(MeterState {
                 tracks: track_peaks,
                 master: peak,
+                lufs: self.momentary.lufs(),
             });
         }
     }

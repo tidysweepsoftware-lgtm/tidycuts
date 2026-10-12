@@ -39,7 +39,7 @@ const MODEL_NAME: &str = "mossformer2_se_48k.onnx";
 
 // ---- finding the files ----------------------------------------------------
 
-fn exe_dir() -> Option<PathBuf> {
+pub(crate) fn exe_dir() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()?
         .parent()
@@ -48,7 +48,7 @@ fn exe_dir() -> Option<PathBuf> {
 
 /// Folders searched for the files that come with the program, nearest first:
 /// next to the program, and where a Mac app keeps them.
-fn search_dirs() -> Vec<PathBuf> {
+pub(crate) fn search_dirs() -> Vec<PathBuf> {
     let mut v = Vec::new();
     if let Some(d) = exe_dir() {
         v.push(d.clone());
@@ -311,6 +311,13 @@ fn runtime_ready(lib: &std::path::Path) -> Result<(), String> {
         Ok(())
     })
     .clone()
+}
+
+/// Loads ONNX Runtime from the file next to the program (once). Other parts
+/// of the engine that use models share it.
+pub(crate) fn ensure_runtime() -> Result<(), String> {
+    let lib = runtime_file().ok_or("ONNX Runtime is not installed")?;
+    runtime_ready(&lib)
 }
 
 fn shared() -> &'static Mutex<Weak<Studio>> {

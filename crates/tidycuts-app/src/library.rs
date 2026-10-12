@@ -1423,6 +1423,25 @@ fn use_row(app: &mut TidyCutsApp, ui: &mut egui::Ui) {
 
 fn catalog_tab(app: &mut TidyCutsApp, ui: &mut egui::Ui, tab: LibraryTab) {
     search_row(app, ui, false, true);
+    if tab == LibraryTab::Titles {
+        // Subtitles from speech: easy to find where people look for titles.
+        ui.horizontal(|ui| {
+            if ui
+                .add(theme::accent_button(&format!("{}  Auto Captions", ph::SUBTITLES)))
+                .on_hover_text(
+                    "Listens to the selected clip and adds what is said as subtitles.                      Select a video or audio clip with speech first.",
+                )
+                .clicked()
+            {
+                app.open_auto_captions();
+            }
+            ui.label(
+                egui::RichText::new("Make subtitles from speech")
+                    .color(theme::TEXT_DIM)
+                    .size(12.0),
+            );
+        });
+    }
     if matches!(
         tab,
         LibraryTab::Titles

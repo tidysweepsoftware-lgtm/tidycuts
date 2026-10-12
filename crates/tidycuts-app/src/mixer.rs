@@ -18,7 +18,84 @@ pub const MAX_VOLUME: f64 = 200.0;
 pub struct MixerState {
     pub open: bool,
     tracks: HashMap<TrackId, [f32; 2]>,
-    master: [f32; 2],
+    /// Smoothed left and right levels of everything playing (1.0 = full scale).
+    pub master: [f32; 2],
+    /// The highest recent level per channel, held for a moment, and when it
+    /// was reached.
+    pub peak_hold: [f32; 2],
+    peak_at: [Option<std::time::Instant>; 2],
+    /// Whether a channel went over full scale since the lamp was last cleared.
+    pub clipped: [bool; 2],
+    /// Momentary loudness of what is playing, LUFS (`None` when silent or stopped).
+    pub lufs: Option<f32>,
+}
+
+impl MixerState {
+    /// Clears the clip lamps and the held peaks.
+    pub fn reset_peaks(&mut self) {
+        self.peak_hold = [0.0; 2];
+        self.peak_at = [None; 2];
+        self.clipped = [false; 2];
+    }
+}
+
+/// Reads the levels of what is playing and eases them down when it stops.
+/// Called every frame (the timeline's sound meter is always on).
+pub fn update_levels(app: &mut TidyCutsApp, ctx: &egui::Context) {
+    let live = app
+        .engine
+        .as_ref()
+        .filter(|e| e.playback.is_playing())
+        .map(|e| e.playback.meters().read());
+    let playing = live.is_some();
+    let mut moving = false;
+    {
+        let state = live.unwrap_or_default();
+        let mut ease = |old: &mut [f32; 2], new: [f32; 2]| {
+            for i in 0..2 {
+                old[i] = new[i].max(old[i] * 0.86);
+                if old[i] < 1e-3 {
+                    old[i] = 0.0;
+                } else {
+                    moving = true;
+                }
+            }
+        };
+        ease(&mut app.mixer.master, state.master);
+        app.mixer.lufs = state.lufs;
+        let ids: Vec<TrackId> = app.project.tracks.iter().map(|t| t.id).collect();
+        for id in ids {
+            let new = state.tracks.get(&id).copied().unwrap_or([0.0; 2]);
+            ease(app.mixer.tracks.entry(id).or_default(), new);
+        }
+        // Peak hold: stays for 1.2 s, then falls away. A lamp lights when a
+        // channel reaches full scale.
+        let now = std::time::Instant::now();
+        let m = &mut app.mixer;
+        for i in 0..2 {
+            let raw = state.master[i];
+            if raw >= m.peak_hold[i] {
+                m.peak_hold[i] = raw;
+                m.peak_at[i] = Some(now);
+            } else if m.peak_at[i].is_some_and(|t| t.elapsed().as_secs_f32() > 1.2) {
+                m.peak_hold[i] *= 0.93;
+                if m.peak_hold[i] < 1e-3 {
+                    m.peak_hold[i] = 0.0;
+                    m.peak_at[i] = None;
+                } else {
+                    moving = true;
+                }
+            } else if m.peak_at[i].is_some() {
+                moving = true;
+            }
+            if raw >= 0.995 {
+                m.clipped[i] = true;
+            }
+        }
+    }
+    if moving || playing {
+        ctx.request_repaint();
+    }
 }
 
 /// Decibels for a volume percent ("-∞" at zero).
@@ -52,37 +129,6 @@ pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     if !app.mixer.open {
         return;
     }
-    // Levels of what is playing, easing down when it stops.
-    let live = app
-        .engine
-        .as_ref()
-        .filter(|e| e.playback.is_playing())
-        .map(|e| e.playback.meters().read());
-    let playing = live.is_some();
-    let mut moving = false;
-    {
-        let state = live.unwrap_or_default();
-        let mut ease = |old: &mut [f32; 2], new: [f32; 2]| {
-            for i in 0..2 {
-                old[i] = new[i].max(old[i] * 0.86);
-                if old[i] < 1e-3 {
-                    old[i] = 0.0;
-                } else {
-                    moving = true;
-                }
-            }
-        };
-        ease(&mut app.mixer.master, state.master);
-        let ids: Vec<TrackId> = app.project.tracks.iter().map(|t| t.id).collect();
-        for id in ids {
-            let new = state.tracks.get(&id).copied().unwrap_or([0.0; 2]);
-            ease(app.mixer.tracks.entry(id).or_default(), new);
-        }
-    }
-    if moving || playing {
-        ctx.request_repaint();
-    }
-
     let strips: Vec<(TrackId, String, f64, bool, bool)> = app
         .project
         .tracks

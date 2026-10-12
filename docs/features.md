@@ -32,7 +32,7 @@ and then its categories.
   stabilisation, lens correction, denoise, upscaling and sharpening.
 - Audio: **Enhance Speech** (one click for a talking voice), **Voice Clean-up**
   (Studio Voice, a neural network that keeps the voice and turns down fans, hiss,
-  traffic and room noise; it runs on your computer), Even Out Levels (lifts quiet speech and
+  traffic and room noise; it runs on your computer), Leveler (lifts quiet speech and
   holds loud parts), a peak limiter, volume, fades, pan, pitch, voice changer,
   equaliser, normalising, hiss, wind and hum removal, de-esser, ducking.
 - Color: exposure, contrast, temperature and tint, highlights and shadows,
@@ -78,6 +78,15 @@ vertical). Edit menu → Make Thumbnail.
 **Colour.** Sliders, HSL ranges, curves, LUTs and four colour wheels (lift, gamma,
 gain, offset) for fine colour work. View menu → Scopes shows a waveform, an RGB
 parade, a vectorscope and a histogram of what the preview shows.
+
+**Sound meter and loudness.** A level meter is always on at the right edge of the timeline
+(two bars, a decibel scale, a held peak, a clip lamp and a live loudness number). View >
+Loudness shows how loud the whole video is; the Export window can set it to a target.
+
+**Auto Captions.** Select a clip with speech and press the subtitle button beside the timeline
+(or Titles tab > Auto Captions, or Clip menu). TidyCuts listens on your computer and adds the
+words as subtitle titles you can edit. **Lower Under Speech** (Clip menu or the Audio tab)
+dips a music clip under every spoken part.
 
 **Silence Detection.** The button in the timeline toolbar (beside mute), or Clip menu → Silence Detection: set how quiet counts as
 silence, how long a pause must last and how much to keep either side, press

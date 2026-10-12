@@ -1,6 +1,6 @@
 # Privacy policy
 
-*TidyCuts 1.1.0, from TidySweep Software. Last updated 12 October 2026.*
+*TidyCuts 1.2.0, from TidySweep Software. Last updated 12 October 2026.*
 
 **Short version: TidyCuts doesn't collect, send or share any information about
 you. It has no account, no ads and no tracking.**
@@ -10,8 +10,11 @@ you. It has no account, no ads and no tracking.**
 - **It collects nothing.** TidyCuts has no analytics, no crash reporting that
   sends anything out, and no sign-in. We never receive your videos, your
   projects, your name, your email address or anything about your computer.
-- **It makes no network requests of its own.** It works fully offline. It doesn't
-  check for updates by itself and doesn't download anything.
+- **It makes no network requests of its own.** It works fully offline and doesn't
+  download anything. The one exception is **Help > Check for Updates**: only when you
+  choose it, TidyCuts asks GitHub for the newest version number (the same as opening
+  the releases page in a browser). Nothing about you or your projects is sent. The
+  Microsoft Store version doesn't have this menu item, because the Store updates it.
 - **Your files stay where you put them.** TidyCuts reads the videos, pictures and
   sounds you choose, and writes the projects and exports you ask for, in the
   places you choose. It also keeps a few helper files on your computer: settings

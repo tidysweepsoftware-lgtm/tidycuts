@@ -27,6 +27,7 @@ pub fn show(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
     denoise(ui, &mut c.audio);
     equalizer(ui, &mut c.audio);
     voice(ui, &mut c.audio);
+    auto_duck(p, ui, c);
     ducking(ui, &mut c.audio);
     if let Some(m) = p.media {
         if m.audio_streams > 1 {
@@ -65,9 +66,9 @@ fn detach(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
 fn enhance(ui: &mut Ui, c: &mut Clip) {
     let on = is_enhanced(&c.audio);
     let detail = if on {
-        "Applied: voice clean-up, rumble cut, levelling, a podcast tone and a peak limiter. Click to switch it off."
+        "On: noise removal, leveling, podcast tone, limiter. Click to switch off."
     } else {
-        "One click for a talking voice: removes background noise, evens out the level and keeps peaks safe."
+        "Removes noise, evens out the level, keeps peaks safe."
     };
     if kit::wide_button(ui, ph::MAGIC_WAND, "Enhance Speech", detail, true).clicked() {
         if on {
@@ -154,7 +155,7 @@ fn volume(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
             );
             kit::slider_row(
                 ui,
-                "Even Out Levels",
+                "Leveler",
                 &mut c.audio.leveler,
                 0.0..=100.0,
                 0,
@@ -222,15 +223,7 @@ fn denoise(ui: &mut Ui, a: &mut AudioSettings) {
         .switch(&mut on)
         .closed()
         .show(ui, |ui| {
-            kit::slider_row(
-                ui,
-                "Hiss Reduction",
-                &mut a.denoise,
-                0.0..=100.0,
-                0,
-                "",
-                50.0,
-            );
+            kit::slider_row(ui, "Hiss Removal", &mut a.denoise, 0.0..=100.0, 0, "", 50.0);
             kit::row_hint(ui, "For steady hiss. For voices, use Voice Clean-up.");
             kit::toggle_row(ui, "Wind Removal", &mut a.wind_removal);
             let sel = match a.hum_removal {
@@ -551,6 +544,25 @@ fn voice(ui: &mut Ui, a: &mut AudioSettings) {
     if out.switched {
         a.voice = if on { "robot".into() } else { String::new() };
     }
+}
+
+/// One click that lowers this clip (the music) wherever someone is talking.
+fn auto_duck(p: &mut Panel, ui: &mut Ui, c: &Clip) {
+    if crate::autoduck::unsuitable(p.app, c.id).is_some() {
+        return;
+    }
+    if kit::wide_button(
+        ui,
+        ph::SPEAKER_SIMPLE_LOW,
+        "Lower Under Speech",
+        "Finds where someone talks on the rest of the timeline and lowers this clip there.",
+        true,
+    )
+    .clicked()
+    {
+        p.actions.push(Action::AutoDuck);
+    }
+    ui.add_space(8.0);
 }
 
 fn ducking(ui: &mut Ui, a: &mut AudioSettings) {

@@ -133,6 +133,8 @@ pub struct TidyCutsApp {
     pub(crate) detect_tx: Sender<crate::detection::Finished>,
     pub(crate) detect_rx: Receiver<crate::detection::Finished>,
     pub(crate) detecting: usize,
+    pub(crate) duck_tx: Sender<crate::autoduck::Finished>,
+    pub(crate) duck_rx: Receiver<crate::autoduck::Finished>,
     pub(crate) sync_tx: Sender<crate::detection::SyncFinished>,
     pub(crate) sync_rx: Receiver<crate::detection::SyncFinished>,
     /// The audio mixer window and its meters.
@@ -156,6 +158,7 @@ impl TidyCutsApp {
         let prefs = Prefs::load();
         let (import_tx, import_rx) = channel();
         let (detect_tx, detect_rx) = channel();
+        let (duck_tx, duck_rx) = channel();
         let (sync_tx, sync_rx) = channel();
         let (proxy_tx, proxy_rx) = channel();
         let (voice_tx, voice_rx) = channel();
@@ -232,6 +235,8 @@ impl TidyCutsApp {
             detect_tx,
             detect_rx,
             detecting: 0,
+            duck_tx,
+            duck_rx,
             sync_tx,
             sync_rx,
             autosave_written: None,
@@ -1643,6 +1648,21 @@ impl TidyCutsApp {
     }
 
     /// At start: offers the work a crash left behind.
+    /// Shows the welcome tour the first time, once nothing else is asking
+    /// for attention.
+    fn first_run_tour(&mut self) {
+        if self.prefs.tour_done
+            || !self.recovery.is_empty()
+            || self.pending.is_some()
+            || self.dialogs.is_modal_open()
+        {
+            return;
+        }
+        self.prefs.tour_done = true;
+        self.prefs.save();
+        self.dialogs.open_tour();
+    }
+
     fn recovery_modal(&mut self, ctx: &egui::Context) {
         if self.recovery.is_empty() || self.pending.is_some() {
             return;
@@ -2565,11 +2585,13 @@ impl eframe::App for TidyCutsApp {
 
         self.unsaved_modal(&ctx);
         self.recovery_modal(&ctx);
+        self.first_run_tour();
         dialogs::show(self, &ctx);
         self.tick_engine(&ctx);
         self.draw_toasts(&ctx);
         self.autosave(&ctx);
         self.poll_detections();
+        self.poll_auto_duck();
         self.poll_syncs();
         self.poll_proxies();
         self.poll_previews();

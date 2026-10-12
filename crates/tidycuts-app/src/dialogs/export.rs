@@ -876,6 +876,29 @@ impl ExportDialog {
                 widgets::choice(ui, "ex-abr", &mut s.audio_kbps, &refs);
             }
         });
+        field(ui, "Loudness", |ui| {
+            // Off, or bring the whole sound to what a kind of site expects.
+            let marks: [(Option<f64>, &str); 3] = [
+                (None, "Off"),
+                (Some(-14.0), "Streaming (-14)"),
+                (Some(-23.0), "Broadcast (-23)"),
+            ];
+            let mut i = marks
+                .iter()
+                .position(|m| m.0 == s.loudness_target)
+                .unwrap_or(0);
+            ui.scope(|ui| {
+                ui.set_max_width(360.0);
+                let labels: Vec<&str> = marks.iter().map(|m| m.1).collect();
+                if widgets::segmented(ui, &mut i, &labels) {
+                    s.loudness_target = marks[i].0;
+                }
+            })
+            .response
+            .on_hover_text(
+                "Sets how loud the finished video is, so it plays at the right level on                  YouTube, social sites or TV. Use View > Loudness to see how loud it is now.",
+            );
+        });
         field(ui, "Sample rate", |ui| {
             if codec == AudioCodec::Opus {
                 ui.label(RichText::new("48 kHz (Opus)").color(theme::TEXT_DIM));

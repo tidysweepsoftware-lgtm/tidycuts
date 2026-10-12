@@ -48,6 +48,18 @@ copyright holders may not be used to endorse products made with it.
   `ONNXRUNTIME-THIRD-PARTY-NOTICES.txt`): <https://github.com/microsoft/onnxruntime>.
   The Rust crate **ort** (MIT or Apache-2.0) loads it.
 
+## Speech recognition (Auto Captions)
+
+- **FastConformer hybrid (English, "stt_en_fastconformer_hybrid_large_pc")** by NVIDIA NeMo,
+  under the **Creative Commons Attribution 4.0** licence (CC-BY-4.0):
+  <https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_pc>. TidyCuts uses the
+  CTC part, exported to ONNX and quantised to 8 bits by the sherpa-onnx project
+  (Apache-2.0, <https://github.com/k2-fsa/sherpa-onnx>). Attribution: "Model by NVIDIA,
+  converted by k2-fsa/sherpa-onnx; changes: format conversion and 8-bit quantisation".
+- A multilingual version of the same network (Belarusian, German, English, Spanish, French,
+  Croatian, Italian, Polish, Russian, Ukrainian) can be added; its licence must be
+  confirmed before it is included in a release (see `packaging/voice-assets.txt`).
+
 ## Fonts
 
 All fonts are in `crates/tidycuts-render/fonts/` and are free for any use,

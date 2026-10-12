@@ -262,7 +262,15 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui) {
         Stroke::new(1.0, theme::BORDER),
     );
 
-    let body = Rect::from_min_max(egui::pos2(full.left(), toolbar.bottom()), full.max);
+    let whole = Rect::from_min_max(egui::pos2(full.left(), toolbar.bottom()), full.max);
+    // The sound meter is always on, at the right edge, beside the ruler and lanes.
+    crate::mixer::update_levels(app, ui.ctx());
+    let meter = Rect::from_min_max(
+        egui::pos2(whole.right() - crate::meter::WIDTH, whole.top()),
+        whole.max,
+    );
+    let body = Rect::from_min_max(whole.min, egui::pos2(meter.left(), whole.bottom()));
+    crate::meter::show(app, ui, meter, RULER_H);
     let ruler = Rect::from_min_max(
         egui::pos2(body.left() + HEADER_W, body.top()),
         egui::pos2(body.right(), body.top() + RULER_H),
@@ -634,6 +642,23 @@ fn toolbar_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect) {
         )
         .is_none()
     });
+    let caption_clip = sel.filter(|c| crate::captions::unsuitable(app, *c).is_none());
+    if tool(
+        ui,
+        next(false),
+        ph::SUBTITLES,
+        if caption_clip.is_some() {
+            "Auto Captions: listen to the selected clip and add what is said as subtitles"
+        } else {
+            "Auto Captions: select a clip with speech first"
+        },
+        caption_clip.is_some(),
+        false,
+    )
+    .clicked()
+    {
+        app.open_auto_captions();
+    }
     if tool(
         ui,
         next(false),
@@ -3564,6 +3589,29 @@ fn clip_menu(app: &mut TidyCutsApp, ui: &mut Ui, clip: ClipId) {
         });
         if item(ui, if c.audio.muted { "Unmute" } else { "Mute" }, "", true) {
             app.toggle_mute();
+        }
+        if item(ui, "Enhance Speech (clean up a voice)", "", true) {
+            app.for_selected(|c| tidycuts_engine::audio_fx::enhance_speech(&mut c.audio));
+            app.notify(
+                "Enhance Speech is on. Open the Audio tab to adjust it.",
+                false,
+            );
+        }
+        if item(
+            ui,
+            "Auto Captions…",
+            "",
+            crate::captions::unsuitable(app, clip).is_none(),
+        ) {
+            app.open_auto_captions();
+        }
+        if item(
+            ui,
+            "Lower Under Speech (auto-duck)",
+            "",
+            crate::autoduck::unsuitable(app, clip).is_none(),
+        ) {
+            app.start_auto_duck(clip, crate::autoduck::LOWER_DB);
         }
         if let Some(m) = &media {
             if m.audio_streams > 1 {

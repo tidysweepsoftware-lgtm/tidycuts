@@ -17,13 +17,34 @@ All notable changes to TidyCuts are listed here, newest first.
   A 4-minute clip takes about 20 seconds. Without the extra files the small RNNoise
   engine is used. The cleaned sound is made ahead of time and kept in the cache; the
   original plays until it is ready, and an export waits for it.
-- **Even Out Levels** and **Peak Limiter** (Volume section): lift a recording that
+- **Leveler** and **Peak Limiter** (Volume section): lift a recording that
   is too quiet by up to 30 dB without letting loud parts clip.
-- **Hiss Reduction** replaces the old Noise Removal slider, with a tuned filter
+- **Hiss Removal** replaces the old Noise Removal slider, with a tuned filter
   that only touches steady hiss.
+- **Sound meter**, always on at the right edge of the timeline: two level bars with a decibel
+  scale, a held peak, a lamp that lights when the sound reaches full scale (click to clear)
+  and a live loudness number in LUFS.
+- **Loudness** (View menu, or click the number under the meter): how loud the whole
+  video is, its highest peak and loudness range, and how that compares with the streaming
+  standard. The Export window has a **Loudness** choice (Streaming -14, Broadcast -23) that
+  brings the finished video to that level (tested: within 0.3 LU on speech).
+- **Lower Under Speech** (auto-duck): lowers a music clip wherever someone is talking. The
+  speech is found with RNNoise's voice detector (all speech found, with no false alarms on
+  test recordings, with and without noise) and the music gets smooth volume points. Clip
+  menu, right-click menu or the Audio tab.
+- **Auto Captions**: speech turned into subtitles, offline. A speech-recognition network
+  (NVIDIA NeMo FastConformer, CC-BY-4.0, run through ONNX Runtime) reads the clip's sound; the
+  words are grouped into short lines with timing and added as normal title clips on a new
+  track in one undo step. About 2-4% of words wrong on clear speech; a 40-second clip takes
+  about 1.5 seconds. Titles tab, Clip menu, right-click menu or the button beside the timeline.
+  English works best; a multilingual model for ten European languages is supported too.
+- **A welcome tour** the first time the program starts (Help > Take the Tour), and
+  **Help > Check for Updates**, which asks GitHub only when you click it (the Microsoft
+  Store version updates itself).
 - Normalize now works in exports and in assistant edits (it was only measured
   when the switch was clicked in the window).
-- The assistant link has an `enhance_speech` tool.
+- The assistant link has `enhance_speech`, `auto_duck`, `measure_loudness`, `transcribe_clip` and
+  `add_captions` tools, and `export_video` can set a loudness.
 
 ## 1.1.0 (the modern library)
 

@@ -54,5 +54,20 @@ foreach ($f in "lib\onnxruntime.dll", "lib\onnxruntime_providers_shared.dll") {
 }
 Copy-Item (Join-Path $src.FullName "LICENSE") "$Dest\onnxruntime\ONNXRUNTIME-LICENSE.txt" -Force
 Copy-Item (Join-Path $src.FullName "ThirdPartyNotices.txt") "$Dest\onnxruntime\ONNXRUNTIME-THIRD-PARTY-NOTICES.txt" -Force
+# The speech models for Auto Captions.
+$asr = @(@("asr-en", $cfg.ASR_EN_URL, $cfg.ASR_EN_SHA256))
+if ($env:TIDYCUTS_WITH_MULTILINGUAL -eq "1") { $asr += ,@("asr-multi", $cfg.ASR_MULTI_URL, $cfg.ASR_MULTI_SHA256) }
+foreach ($m in $asr) {
+  $arc = Join-Path $work ($m[0] + ".tar.bz2")
+  Invoke-WebRequest $m[1] -OutFile $arc
+  Check $arc $m[2]
+  $out = Join-Path $work $m[0]
+  New-Item -ItemType Directory -Force $out | Out-Null
+  tar -xjf $arc -C $out
+  $inner = Get-ChildItem $out -Directory | Select-Object -First 1
+  New-Item -ItemType Directory -Force "$Dest\models\$($m[0])" | Out-Null
+  Copy-Item (Join-Path $inner.FullName "model.int8.onnx") "$Dest\models\$($m[0])\" -Force
+  Copy-Item (Join-Path $inner.FullName "tokens.txt") "$Dest\models\$($m[0])\" -Force
+}
 [IO.Directory]::Delete($work, $true)
 Write-Host "Studio Voice files are in $Dest"

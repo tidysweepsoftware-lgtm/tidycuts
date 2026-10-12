@@ -3,11 +3,14 @@
 
 pub mod analysis;
 pub mod audio_fx;
+pub mod autoduck;
+pub mod captions;
 pub mod decode;
 pub mod detect;
 pub mod export;
 pub mod frames;
 pub mod levels;
+pub mod loudness;
 pub mod mixer;
 pub mod plan;
 pub mod playback;

@@ -176,6 +176,8 @@ pub struct Prefs {
     pub mcp_port: u16,
     /// The secret a connection must show.
     pub mcp_token: String,
+    /// The welcome tour has been shown once.
+    pub tour_done: bool,
 }
 
 impl Default for Prefs {
@@ -208,6 +210,7 @@ impl Default for Prefs {
             mcp_enabled: false,
             mcp_port: 47861,
             mcp_token: String::new(),
+            tour_done: false,
         }
     }
 }

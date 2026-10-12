@@ -2,6 +2,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod autoduck;
+mod captions;
 mod detection;
 mod dialogs;
 mod easing;
@@ -13,6 +15,7 @@ mod library_thumbs;
 mod mcp;
 mod mcp_tools;
 mod menus;
+mod meter;
 mod mixer;
 mod prefs;
 mod preview;

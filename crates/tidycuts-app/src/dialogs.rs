@@ -7,16 +7,20 @@
 //! was being typed in).
 
 mod about;
+mod captions;
 mod crop;
 mod export;
 mod export_preview;
 pub use export::job_fraction;
 mod import_size;
+mod loudness;
 mod preferences;
 mod project_settings;
 mod silence;
 pub mod sizes;
 mod thumbnail;
+mod tour;
+mod updates;
 mod voiceover;
 
 use crate::app::TidyCutsApp;
@@ -40,6 +44,10 @@ pub struct DialogState {
     crop: Option<crop::CropDialog>,
     about: Option<about::AboutDialog>,
     silence: Option<silence::SilenceDialog>,
+    tour: Option<tour::TourDialog>,
+    updates: Option<updates::UpdatesDialog>,
+    captions: Option<captions::CaptionsDialog>,
+    loudness: Option<loudness::LoudnessDialog>,
     voiceover: Option<voiceover::VoiceoverDialog>,
     thumbnail: Option<thumbnail::ThumbnailDialog>,
     /// Settings of the last export, so a failed one can be retried.
@@ -93,6 +101,16 @@ impl DialogState {
         self.silence = Some(silence::SilenceDialog::new(clip));
     }
 
+    /// Opens the Auto Captions window for a clip.
+    pub fn open_captions(&mut self, clip: ClipId) {
+        self.captions = Some(captions::CaptionsDialog::new(clip));
+    }
+
+    /// Opens the welcome tour.
+    pub fn open_tour(&mut self) {
+        self.tour = Some(tour::TourDialog::default());
+    }
+
     pub fn open_about(&mut self) {
         self.about = Some(about::AboutDialog);
     }
@@ -107,9 +125,29 @@ impl DialogState {
             || self.crop.is_some()
             || self.about.is_some()
             || self.silence.is_some()
+            || self.tour.is_some()
+            || self.updates.is_some()
+            || self.captions.is_some()
+            || self.loudness.is_some()
             || self.voiceover.is_some()
             || self.thumbnail.is_some()
     }
+}
+
+/// Opens the Loudness window and starts measuring the timeline.
+pub fn open_loudness(app: &mut TidyCutsApp, ctx: &egui::Context) {
+    let d = loudness::LoudnessDialog::new(app, ctx);
+    app.dialogs.loudness = Some(d);
+}
+
+/// Opens Check for Updates (this is the only time TidyCuts asks the internet).
+pub fn open_updates(app: &mut TidyCutsApp, ctx: &egui::Context) {
+    app.dialogs.updates = Some(updates::UpdatesDialog::new(ctx));
+}
+
+/// Whether this copy updates itself (the Microsoft Store version does).
+pub fn updates_come_from_store() -> bool {
+    updates::is_store_build()
 }
 
 /// Opens the thumbnail maker.
@@ -140,6 +178,10 @@ pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     run!(crop);
     run!(about);
     run!(silence);
+    run!(tour);
+    run!(updates);
+    run!(captions);
+    run!(loudness);
     run!(voiceover);
     run!(thumbnail);
     // The import question goes on top of everything else.

@@ -194,6 +194,13 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
             if item(ui, "Mute", "", has_sel) {
                 app.toggle_mute();
             }
+            if item(ui, "Enhance Speech (clean up a voice)", "", has_sel) {
+                app.for_selected(|c| tidycuts_engine::audio_fx::enhance_speech(&mut c.audio));
+                app.notify(
+                    "Enhance Speech is on. Open the Audio tab to adjust it.",
+                    false,
+                );
+            }
             if item(ui, "Disable Clip", "", has_sel) {
                 app.toggle_disable();
             }
@@ -222,6 +229,17 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
                 if item(ui, "Add Beat Markers", "", ok(app, Detection::Beats)) {
                     if let Some(id) = clip {
                         app.start_detection(id, Detection::Beats);
+                    }
+                }
+                let can_caption =
+                    clip.is_some_and(|c| crate::captions::unsuitable(app, c).is_none());
+                if item(ui, "Auto Captions…", "", can_caption) {
+                    app.open_auto_captions();
+                }
+                let can_duck = clip.is_some_and(|c| crate::autoduck::unsuitable(app, c).is_none());
+                if item(ui, "Lower Music Under Speech", "", can_duck) {
+                    if let Some(id) = clip {
+                        app.start_auto_duck(id, crate::autoduck::LOWER_DB);
                     }
                 }
                 if item(ui, "Line Up by Sound", "", app.selection.len() >= 2) {
@@ -268,6 +286,9 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
             }
             if item(ui, "Audio Mixer", "", true) {
                 app.mixer.open = !app.mixer.open;
+            }
+            if item(ui, "Loudness (how loud is the whole video)…", "", true) {
+                crate::dialogs::open_loudness(app, ui.ctx());
             }
             if item(ui, "Scopes (waveform, vectorscope…)", "", true) {
                 app.scopes.open = !app.scopes.open;
@@ -373,6 +394,16 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
                 });
             }
             ui.separator();
+            if ui.button("Take the Tour").clicked() {
+                app.dialogs.open_tour();
+                ui.close();
+            }
+            if !crate::dialogs::updates_come_from_store()
+                && ui.button("Check for Updates…").clicked()
+            {
+                crate::dialogs::open_updates(app, ui.ctx());
+                ui.close();
+            }
             if ui.button("About TidyCuts").clicked() {
                 app.dialogs.open_about();
                 ui.close();
