@@ -17,6 +17,12 @@ workflow, `.github/workflows/release.yml`.
    - `TidyCuts-<version>-macos.dmg`, the Mac disk image (Apple Silicon, with an
      LGPL FFmpeg when its build succeeds; the app works without it if FFmpeg is
      installed), and `TidyCuts-<version>-macos.zip`, the same app as a zip.
+   - `TidyCuts-<version>-store.msix` (a separate download of the run, not part of the
+     release): the Microsoft Store package, made by `scripts/make-msix.ps1`. It is
+     unsigned because the Store signs it. Before the first upload, replace the
+     placeholder identity in `packaging/windows/msix/AppxManifest.xml` (or pass
+     `-IdentityName` and `-Publisher`) with the values from Partner Center, under
+     Product management > Product identity. Then upload the file in a new submission.
 5. It then creates a **draft** release with the files, a `SHA256SUMS.txt` and the
    notes from `.github/release-notes.md` attached. Read the notes, try the
    installers on a real machine, and press Publish.

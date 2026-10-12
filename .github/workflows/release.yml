@@ -54,7 +54,18 @@ jobs:
         run: |
           $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
           Compress-Archive -Path dist/TidyCuts -DestinationPath "dist/TidyCuts-$version-windows-portable.zip"
+      # The Microsoft Store package. It is not attached to the GitHub release (it
+      # cannot be installed outside the Store); it is kept as a separate download
+      # of the run. See docs/releasing.md.
+      - name: Microsoft Store package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
+          ./scripts/make-msix.ps1 -Folder dist/TidyCuts -Version $version -Out dist-store
       - uses: actions/upload-artifact@v4
+        with:
+          name: TidyCuts-store-package
+          path: dist-store/TidyCuts-*-store.msix      - uses: actions/upload-artifact@v4
         with:
           name: TidyCuts-windows-files
           path: |

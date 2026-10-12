@@ -23,13 +23,15 @@
 ## See it in action
 
 <p align="center">
-  <img src="docs/images/shot-effects.png" alt="The Effects library: sound-reactive, beat and glass effects, each shown on a real picture" width="49%">
+  <img src="docs/images/shot-titles.png" alt="The Titles library in the modern style, with a row of use-case chips such as Business, Gaming and Travel" width="49%">
+  <img src="docs/images/shot-transitions.png" alt="The Transitions library: cracking ice, stepped blocks, glass slabs and more, each shown on a real picture" width="49%">
+  <img src="docs/images/shot-effects.png" alt="The Effects library, now with a Sound Reactive group that moves with the clip's own sound" width="49%">
+  <img src="docs/images/shot-filters.png" alt="The Filters library with a before and after slider on every tile" width="49%">
+  <img src="docs/images/shot-stickers.png" alt="The Stickers library: call-outs, word pops, bursts and more, drawn in code" width="49%">
   <img src="docs/images/shot-blur.png" alt="Blur Area and Pixelate Area hide a face or any area" width="49%">
-  <img src="docs/images/shot-silence.png" alt="Silence Detection cuts the pauses out of a clip" width="49%">
-  <img src="docs/images/shot-thumbnail.png" alt="The thumbnail maker puts big lettering on any frame" width="49%">
 </p>
 
-<p align="center"><sub>Effects · Blur a face · Silence Detection · Thumbnail maker</sub></p>
+<p align="center"><sub>Titles · Transitions · Effects · Filters · Stickers · Blur a face</sub></p>
 
 Plus a magnetic timeline with up to 10 video and 5 audio tracks, speed ramps and
 keyframes · colour wheels, curves, LUTs and scopes · voiceover from typed text ·
