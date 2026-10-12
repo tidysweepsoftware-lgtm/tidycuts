@@ -55,12 +55,12 @@ fn basic_tab(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
         crop(p, ui, c);
     }
     if p.kind != Kind::Solid {
-        background(ui, c);
+        background(p, ui, c);
     }
     shadow(ui, c);
     motion_blur(ui, c);
     if p.kind == Kind::Video {
-        stabilization(ui, c);
+        stabilization(p, ui, c);
         flicker(ui, c);
     }
     if p.kind.is_media() {
@@ -394,11 +394,37 @@ fn crop(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
     }
 }
 
-fn background(ui: &mut Ui, c: &mut Clip) {
+/// Whether the clip's picture covers the whole frame, so a background
+/// behind it could not be seen.
+fn covers_frame(p: &Panel, c: &Clip) -> bool {
+    let Some(m) = p.media else {
+        return false;
+    };
+    let s = &p.app.project.settings;
+    let (cw, ch) = (f64::from(s.width), f64::from(s.height));
+    let (mw, mh) = (f64::from(m.width.max(1)), f64::from(m.height.max(1)));
+    let fit = (cw / mw).min(ch / mh);
+    let sx = c.transform.scale_x.value_at(p.local).abs() / 100.0;
+    let sy = c.transform.scale_y.value_at(p.local).abs() / 100.0;
+    let turned = c
+        .transform
+        .rotation
+        .value_at(p.local)
+        .rem_euclid(360.0)
+        .abs()
+        > 0.01;
+    !turned && mw * fit * sx >= cw - 1.0 && mh * fit * sy >= ch - 1.0
+}
+
+fn background(p: &Panel, ui: &mut Ui, c: &mut Clip) {
+    let covers = p.kind.is_media() && covers_frame(p, c);
+    let animated = c.transform.scale_x.is_animated() || c.transform.scale_y.is_animated();
+    let mut shrink = false;
     let bg = &mut c.video.background;
     let mut on = bg.fill != BackgroundFill::None;
+    let active = on;
     let can_reset = *bg != ClipBackground::default();
-    let out = Sec::new("background", "Background")
+    let out = Sec::new("background", "Frame Fill")
         .switch(&mut on)
         .reset(can_reset)
         .closed()
@@ -423,6 +449,26 @@ fn background(ui: &mut Ui, c: &mut Clip) {
                 "Fills the frame around a clip that doesn't cover it, like a vertical \
                  phone video in a widescreen project.",
             );
+            if active && covers {
+                ui.add_space(2.0);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(
+                            "This clip already fills the whole frame, so there is no empty \
+                             space for the background to show in. Make the clip smaller to \
+                             see it.",
+                        )
+                        .size(12.0)
+                        .color(theme::WARNING),
+                    )
+                    .wrap(),
+                );
+                if !animated
+                    && kit::text_button(ui, ph::ARROWS_IN, "Make clip smaller (70%)").clicked()
+                {
+                    shrink = true;
+                }
+            }
         });
     if out.switched {
         bg.fill = if on {
@@ -433,6 +479,10 @@ fn background(ui: &mut Ui, c: &mut Clip) {
     }
     if out.reset {
         *bg = ClipBackground::default();
+    }
+    if shrink {
+        c.transform.scale_x.value = 70.0;
+        c.transform.scale_y.value = 70.0;
     }
 }
 
@@ -501,17 +551,40 @@ fn motion_blur(ui: &mut Ui, c: &mut Clip) {
     );
 }
 
-fn stabilization(ui: &mut Ui, c: &mut Clip) {
-    strength_section(
-        ui,
-        "stabilize",
-        "Stabilization",
-        "Smoothness",
-        &mut c.video.stabilize,
-        50.0,
-        "Smooths out camera shake. The clip is analyzed once in the background and \
-         zoomed in slightly so moving edges stay hidden.",
-    );
+fn stabilization(p: &Panel, ui: &mut Ui, c: &mut Clip) {
+    use tidycuts_engine::stabilize::{self, Status};
+    let media = p.media;
+    let range = (c.source_in, c.source_out);
+    let mut on = c.video.stabilize > 0.0;
+    let out = Sec::new("stabilize", "Stabilization")
+        .switch(&mut on)
+        .closed()
+        .show(ui, |ui| {
+            let mut v = c.video.stabilize;
+            if kit::slider_row(ui, "Smoothness", &mut v, 0.0..=100.0, 0, "", 50.0) {
+                c.video.stabilize = v;
+            }
+            let status = if c.video.stabilize > 0.0 {
+                media.map(|m| stabilize::request(m, range))
+            } else {
+                None
+            };
+            let text = match status {
+                Some(Status::Working(f)) => {
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(150));
+                    format!("Watching the camera movement... {:.0}%", f * 100.0)
+                }
+                Some(Status::Failed) => "This clip could not be analyzed.".to_string(),
+                _ => "Smooths out camera shake. The clip is analyzed once, then zoomed in \
+                      slightly so the moving edges stay hidden."
+                    .to_string(),
+            };
+            kit::row_hint(ui, &text);
+        });
+    if out.switched {
+        c.video.stabilize = if on { 50.0 } else { 0.0 };
+    }
 }
 
 fn flicker(ui: &mut Ui, c: &mut Clip) {

@@ -302,18 +302,12 @@ impl FrameProvider for PreviewFrames<'_> {
     }
 }
 
-/// Filters that need neighbouring frames (flicker removal, stabilization),
+/// Filters that need neighbouring frames (flicker removal),
 /// so they only run on streaming decoders: playback and export.
 pub fn temporal_filters(clip: &Clip) -> Vec<String> {
     let mut f = Vec::new();
     if clip.video.deflicker {
         f.push("deflicker=size=7:mode=pm".to_string());
-    }
-    if clip.video.stabilize > 0.0 {
-        // Search range grows with the strength; mirrored edges hide the
-        // borders the correction uncovers.
-        let r = (8.0 + clip.video.stabilize.clamp(0.0, 100.0) * 0.56).round() as u32;
-        f.push(format!("deshake=rx={r}:ry={r}:edge=mirror"));
     }
     f
 }

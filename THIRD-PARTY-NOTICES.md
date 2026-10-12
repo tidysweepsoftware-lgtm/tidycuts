@@ -50,15 +50,16 @@ copyright holders may not be used to endorse products made with it.
 
 ## Speech recognition (Auto Captions)
 
-- **FastConformer hybrid (English, "stt_en_fastconformer_hybrid_large_pc")** by NVIDIA NeMo,
-  under the **Creative Commons Attribution 4.0** licence (CC-BY-4.0):
-  <https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_pc>. TidyCuts uses the
-  CTC part, exported to ONNX and quantised to 8 bits by the sherpa-onnx project
-  (Apache-2.0, <https://github.com/k2-fsa/sherpa-onnx>). Attribution: "Model by NVIDIA,
-  converted by k2-fsa/sherpa-onnx; changes: format conversion and 8-bit quantisation".
-- A multilingual version of the same network (Belarusian, German, English, Spanish, French,
-  Croatian, Italian, Polish, Russian, Ukrainian) can be added; its licence must be
-  confirmed before it is included in a release (see `packaging/voice-assets.txt`).
+- **Whisper** by OpenAI, under the **MIT licence**: <https://github.com/openai/whisper>.
+  TidyCuts uses the *large-v3-turbo* model in the GGML format with 5-bit quantisation
+  (`ggml-large-v3-turbo-q5_0.bin`), published by the whisper.cpp project at
+  <https://huggingface.co/ggerganov/whisper.cpp>. It is downloaded by the app the first
+  time Auto Captions is used.
+- **whisper.cpp** by Georgi Gerganov and contributors, under the **MIT licence**:
+  <https://github.com/ggml-org/whisper.cpp>. Its `whisper-cli` program and libraries (ggml)
+  come with TidyCuts in the `whisper-cpp` folder and run Whisper on the computer.
+  On Windows they are the official release build; on the Mac the release workflow builds
+  them from the same source.
 
 ## Fonts
 

@@ -150,6 +150,22 @@ impl PreferencesDialog {
             });
         });
         ui.add_space(8.0);
+        widgets::group_title(ui, "Listening");
+        {
+            let labels = ["Off", "Normal (-10 LUFS)", "Careful (-16 LUFS)"];
+            let mut i = usize::from(d.hearing_guard).min(2);
+            ui.scope(|ui| {
+                ui.set_max_width(460.0);
+                if widgets::segmented(ui, &mut i, &labels) {
+                    d.hearing_guard = i as u8;
+                }
+            });
+            widgets::hint(
+                ui,
+                "Protects your hearing when you edit with headphones: while you play, the sound is turned down if it gets louder than this, and sudden peaks are held under -3 dB. It never changes an exported video.",
+            );
+        }
+        ui.add_space(8.0);
         widgets::group_title(ui, "Timeline");
         switch(
             ui,
@@ -561,6 +577,11 @@ impl PreferencesDialog {
             ..self.draft.clone()
         };
         app.timeline.snap = new.snapping;
+        if new.hearing_guard != old.hearing_guard {
+            if let Some(e) = &app.engine {
+                e.set_hearing_guard(new.hearing_guard);
+            }
+        }
         if new.hardware_decode != old.hardware_decode {
             if let Some(e) = &mut app.engine {
                 e.set_hardware_decoding(new.hardware_decode);

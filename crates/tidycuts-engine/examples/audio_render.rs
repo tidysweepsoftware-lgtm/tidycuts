@@ -1,6 +1,6 @@
 //! Renders the sound of one file through the real mixer, the way an export
 //! does: `audio_render in.wav out.raw <preset>` (raw stereo f32le, 48 kHz).
-//! Presets: none, enhance, clean, level, normalize, old.
+//! Presets: none, enhance, clean, level, normalize, normalize_enhance, loud, old.
 
 use std::time::Duration;
 use tidycuts_core::*;
@@ -29,11 +29,25 @@ fn main() {
                 a.limiter = true;
             }
             "normalize" => a.normalize = true,
+            "normalize_enhance" => {
+                tidycuts_engine::audio_fx::enhance_speech(a);
+                a.normalize = true;
+            }
             _ => {}
         }
     }
+    // A very loud setting, to see the hearing guard work.
+    if args.get(3).map(String::as_str) == Some("loud") {
+        p.clip_mut(id).unwrap().volume = Animatable::constant(1600.0);
+    }
     let sr = 48_000u32;
     let mut mixer = Mixer::new(sr, Duration::from_secs(30), Default::default());
+    // TIDYCUTS_GUARD=-10 turns the hearing guard on, as playback does.
+    mixer.set_guard(
+        std::env::var("TIDYCUTS_GUARD")
+            .ok()
+            .and_then(|g| g.parse().ok()),
+    );
     let total = (seconds * sr as f64) as usize;
     let mut out = Vec::with_capacity(total * 8);
     let mut buf = vec![0f32; 4096 * 2];

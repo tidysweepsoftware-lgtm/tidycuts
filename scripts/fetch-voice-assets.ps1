@@ -5,6 +5,7 @@
 
   Result:  <Dest>/models/mossformer2_se_48k.onnx
            <Dest>/onnxruntime/onnxruntime.dll (and its licence files)
+           <Dest>/whisper-cpp/whisper-cli.exe (and its libraries), for Auto Captions
 
   The versions and checksums are in packaging/voice-assets.txt. A download whose
   checksum is wrong stops the script. Without -Repo the repository is read from
@@ -54,20 +55,16 @@ foreach ($f in "lib\onnxruntime.dll", "lib\onnxruntime_providers_shared.dll") {
 }
 Copy-Item (Join-Path $src.FullName "LICENSE") "$Dest\onnxruntime\ONNXRUNTIME-LICENSE.txt" -Force
 Copy-Item (Join-Path $src.FullName "ThirdPartyNotices.txt") "$Dest\onnxruntime\ONNXRUNTIME-THIRD-PARTY-NOTICES.txt" -Force
-# The speech models for Auto Captions.
-$asr = @(@("asr-en", $cfg.ASR_EN_URL, $cfg.ASR_EN_SHA256))
-if ($env:TIDYCUTS_WITH_MULTILINGUAL -eq "1") { $asr += ,@("asr-multi", $cfg.ASR_MULTI_URL, $cfg.ASR_MULTI_SHA256) }
-foreach ($m in $asr) {
-  $arc = Join-Path $work ($m[0] + ".tar.bz2")
-  Invoke-WebRequest $m[1] -OutFile $arc
-  Check $arc $m[2]
-  $out = Join-Path $work $m[0]
-  New-Item -ItemType Directory -Force $out | Out-Null
-  tar -xjf $arc -C $out
-  $inner = Get-ChildItem $out -Directory | Select-Object -First 1
-  New-Item -ItemType Directory -Force "$Dest\models\$($m[0])" | Out-Null
-  Copy-Item (Join-Path $inner.FullName "model.int8.onnx") "$Dest\models\$($m[0])\" -Force
-  Copy-Item (Join-Path $inner.FullName "tokens.txt") "$Dest\models\$($m[0])\" -Force
-}
+# The program that listens for Auto Captions (whisper.cpp, MIT). The speech model is
+# downloaded by TidyCuts itself the first time it is needed.
+$wz = Join-Path $work "whisper.zip"
+Invoke-WebRequest $cfg.WHISPER_CPP_WIN_URL -OutFile $wz
+Check $wz $cfg.WHISPER_CPP_WIN_SHA256
+Expand-Archive $wz -DestinationPath (Join-Path $work "whisper")
+$wsrc = Get-ChildItem (Join-Path $work "whisper") -Directory | Select-Object -First 1
+New-Item -ItemType Directory -Force "$Dest\whisper-cpp" | Out-Null
+Copy-Item (Join-Path $wsrc.FullName "whisper-cli.exe") "$Dest\whisper-cpp\" -Force
+Get-ChildItem $wsrc.FullName -Filter *.dll | ForEach-Object { Copy-Item $_.FullName "$Dest\whisper-cpp\" -Force }
+Invoke-WebRequest "https://raw.githubusercontent.com/ggml-org/whisper.cpp/$($cfg.WHISPER_CPP_TAG)/LICENSE" -OutFile "$Dest\whisper-cpp\WHISPER-CPP-LICENSE.txt"
 [IO.Directory]::Delete($work, $true)
 Write-Host "Studio Voice files are in $Dest"

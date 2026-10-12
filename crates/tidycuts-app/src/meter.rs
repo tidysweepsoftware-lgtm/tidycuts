@@ -85,7 +85,7 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect, header_h: f32) {
         app.mixer.reset_peaks();
     }
     resp.on_hover_text(
-        "Sound level of everything that plays (peak). Click to clear the peak and the red lamps.",
+        "Sound level of everything that plays (peak). Click to clear the peak and the red lamps.          \"SAFE\" means the hearing guard is turning loud sound down (Preferences > General > Listening).",
     );
 
     // The two clip lamps sit in the ruler's height.
@@ -103,12 +103,18 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect, header_h: f32) {
             },
         );
     }
+    // The hearing guard says so when it is turning the sound down.
+    let guarding = app.mixer.guard_db < -1.0;
     painter.text(
         Pos2::new(rect.left() + 6.0, lamp_y),
         Align2::LEFT_CENTER,
-        "dB",
+        if guarding { "SAFE" } else { "dB" },
         FontId::proportional(10.5),
-        theme::TEXT_FAINT,
+        if guarding {
+            theme::WARNING
+        } else {
+            theme::TEXT_FAINT
+        },
     );
 
     // The bars and their scale.

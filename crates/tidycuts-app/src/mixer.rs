@@ -28,6 +28,8 @@ pub struct MixerState {
     pub clipped: [bool; 2],
     /// Momentary loudness of what is playing, LUFS (`None` when silent or stopped).
     pub lufs: Option<f32>,
+    /// How far the hearing guard is turning the sound down (decibels, 0 or less).
+    pub guard_db: f32,
 }
 
 impl MixerState {
@@ -63,6 +65,7 @@ pub fn update_levels(app: &mut TidyCutsApp, ctx: &egui::Context) {
         };
         ease(&mut app.mixer.master, state.master);
         app.mixer.lufs = state.lufs;
+        app.mixer.guard_db = state.guard_db;
         let ids: Vec<TrackId> = app.project.tracks.iter().map(|t| t.id).collect();
         for id in ids {
             let new = state.tracks.get(&id).copied().unwrap_or([0.0; 2]);

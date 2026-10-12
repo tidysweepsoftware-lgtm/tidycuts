@@ -11,7 +11,7 @@ use crate::plan::{Planner, PreparedFrame};
 use crate::previews::Cached;
 use crate::statics::Statics;
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -31,6 +31,8 @@ struct Shared {
     wall_start: Mutex<Instant>,
     out_size: Mutex<(u32, u32)>,
     hwaccel: AtomicBool,
+    /// The hearing guard's loudest level in hundredths of a LUFS (`i32::MIN` = off).
+    guard: AtomicI32,
     /// Rendered previews that stand in for the live picture where they cover it.
     previews: Mutex<Arc<Vec<Cached>>>,
 }
@@ -78,6 +80,7 @@ impl Playback {
             wall_start: Mutex::new(Instant::now()),
             out_size: Mutex::new((960, 540)),
             hwaccel: AtomicBool::new(true),
+            guard: AtomicI32::new(i32::MIN),
             previews: Mutex::new(Arc::new(Vec::new())),
         });
         let (tx, rx) = bounded::<(u64, PreparedFrame)>(4);
@@ -147,6 +150,13 @@ impl Playback {
     /// Output size of the preview, in pixels.
     pub fn set_output_size(&self, w: u32, h: u32) {
         *self.shared.out_size.lock().unwrap() = (w.max(2), h.max(2));
+    }
+
+    /// Turns the hearing guard on, with the loudest allowed level in LUFS, or
+    /// off (`None`). It only protects playback; exports are not touched.
+    pub fn set_hearing_guard(&self, ceiling: Option<f32>) {
+        let v = ceiling.map_or(i32::MIN, |c| (c * 100.0).round() as i32);
+        self.shared.guard.store(v, Ordering::SeqCst);
     }
 
     pub fn set_hardware_decoding(&self, on: bool) {
@@ -274,6 +284,8 @@ fn audio_thread(
             continue;
         }
         let project = shared.project.lock().unwrap().clone();
+        let g = shared.guard.load(Ordering::Relaxed);
+        mixer.set_guard((g != i32::MIN).then(|| g as f32 / 100.0));
         mixer.mix(&project, cursor, &mut stereo);
         if shared.epoch.load(Ordering::SeqCst) != epoch {
             continue;

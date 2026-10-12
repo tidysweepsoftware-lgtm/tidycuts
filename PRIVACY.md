@@ -10,11 +10,14 @@ you. It has no account, no ads and no tracking.**
 - **It collects nothing.** TidyCuts has no analytics, no crash reporting that
   sends anything out, and no sign-in. We never receive your videos, your
   projects, your name, your email address or anything about your computer.
-- **It makes no network requests of its own.** It works fully offline and doesn't
-  download anything. The one exception is **Help > Check for Updates**: only when you
-  choose it, TidyCuts asks GitHub for the newest version number (the same as opening
-  the releases page in a browser). Nothing about you or your projects is sent. The
-  Microsoft Store version doesn't have this menu item, because the Store updates it.
+- **It makes no network requests of its own.** It works fully offline. There are two
+  exceptions, and both happen only when you press the button. **Help > Check for
+  Updates** asks GitHub for the newest version number (the same as opening the releases
+  page in a browser). **Download the speech model** in the Auto Captions window downloads
+  the 574 MB Whisper speech model once, from this project's GitHub releases (or, if that is
+  unavailable, from Hugging Face); after that captions are made on your computer without a
+  connection. Nothing about you or your projects is sent in either case. The Microsoft Store
+  version doesn't have the update menu item, because the Store updates it.
 - **Your files stay where you put them.** TidyCuts reads the videos, pictures and
   sounds you choose, and writes the projects and exports you ask for, in the
   places you choose. It also keeps a few helper files on your computer: settings

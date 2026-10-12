@@ -84,9 +84,21 @@ parade, a vectorscope and a histogram of what the preview shows.
 Loudness shows how loud the whole video is; the Export window can set it to a target.
 
 **Auto Captions.** Select a clip with speech and press the subtitle button beside the timeline
-(or Titles tab > Auto Captions, or Clip menu). TidyCuts listens on your computer and adds the
-words as subtitle titles you can edit. **Lower Under Speech** (Clip menu or the Audio tab)
+(or Titles tab > Auto Captions, or Clip menu). Pick the language (99 are understood, or let it
+detect), and TidyCuts listens on your computer with Whisper and adds the words as subtitle
+titles you can edit. The speech model (574 MB) is downloaded once, the first time. It copes
+with soft and whispered voices, leaves out sounds such as sighs, and puts each caption on
+screen only while the voice is there. **Lower Under Speech** (Clip menu or the Audio tab)
 dips a music clip under every spoken part.
+
+**Normalize and Enhance Speech.** On the Audio tab, **Normalize** is one click: it evens out
+loud and quiet parts, brings the clip to a comfortable loudness (-16 LUFS) and never lets it
+clip. **Enhance Speech** removes background noise from a voice (Studio Voice, included) and
+adds levelling, a podcast tone and a peak limiter.
+
+**Stabilization.** Video tab > Stabilization watches the clip once, works out how the camera
+moved, and takes the shake out (a walking person in the picture does not fool it). The
+picture is zoomed in a little to hide the edges.
 
 **Silence Detection.** The button in the timeline toolbar (beside mute), or Clip menu → Silence Detection: set how quiet counts as
 silence, how long a pause must last and how much to keep either side, press

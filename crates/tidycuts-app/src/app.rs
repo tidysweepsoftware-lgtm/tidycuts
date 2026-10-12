@@ -163,15 +163,11 @@ impl TidyCutsApp {
         let (proxy_tx, proxy_rx) = channel();
         let (voice_tx, voice_rx) = channel();
         let (engine, gpu_error) = match &cc.wgpu_render_state {
-            Some(rs) => (
-                Some(Engine::new(
-                    rs,
-                    &cc.egui_ctx,
-                    prefs.cache_dir(),
-                    prefs.hardware_decode,
-                )),
-                None,
-            ),
+            Some(rs) => {
+                let e = Engine::new(rs, &cc.egui_ctx, prefs.cache_dir(), prefs.hardware_decode);
+                e.set_hearing_guard(prefs.hearing_guard);
+                (Some(e), None)
+            }
             None => (
                 None,
                 Some("No graphics device was found, so the preview can't be shown.".to_string()),

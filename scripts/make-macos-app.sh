@@ -25,12 +25,19 @@ if [ -d voice-assets/Contents ]; then
   mkdir -p "$app/Contents/Frameworks"
   cp voice-assets/Contents/Frameworks/* "$app/Contents/Frameworks/"
 fi
+# Auto Captions: the whisper.cpp program built by the release workflow into
+# ./whisper-macos (its model is downloaded by the app when it is first needed).
+if [ -x whisper-macos/whisper-cli ]; then
+  mkdir -p "$app/Contents/Resources/whisper-cpp"
+  cp whisper-macos/whisper-cli "$app/Contents/Resources/whisper-cpp/"
+  cp whisper-macos/WHISPER-CPP-LICENSE.txt "$app/Contents/Resources/whisper-cpp/" 2>/dev/null || true
+fi
 # Sign everything ad hoc ("-"): it needs no developer account, and a sealed,
 # signed bundle is what macOS expects. An unsigned downloaded app is often
 # reported as "damaged and can't be opened". (Apple's own Developer ID
 # signing and notarization would remove the "can't check it" prompt too.)
 if command -v codesign >/dev/null 2>&1; then
-  for f in "$app/Contents/Resources/ffmpeg" "$app/Contents/Resources/ffprobe" "$app/Contents/Frameworks/libonnxruntime.dylib"; do
+  for f in "$app/Contents/Resources/ffmpeg" "$app/Contents/Resources/ffprobe" "$app/Contents/Resources/whisper-cpp/whisper-cli" "$app/Contents/Frameworks/libonnxruntime.dylib"; do
     if [ -f "$f" ]; then codesign --force --options runtime --sign "${SIGN_IDENTITY:--}" "$f"; fi
   done
   codesign --force --deep --options runtime --sign "${SIGN_IDENTITY:--}" "$app"

@@ -34,20 +34,7 @@ src="$work/onnxruntime-osx-arm64-$v"
 cp -L "$src/lib/libonnxruntime.dylib" "$app/Contents/Frameworks/libonnxruntime.dylib"
 cp "$src/LICENSE" "$app/Contents/Frameworks/ONNXRUNTIME-LICENSE.txt"
 cp "$src/ThirdPartyNotices.txt" "$app/Contents/Frameworks/ONNXRUNTIME-THIRD-PARTY-NOTICES.txt"
-# The speech models for Auto Captions (English always; the multilingual one only when asked).
-fetch_asr() {
-  name="$1"; url="$2"; want="$3"
-  curl -L -o "$work/$name.tar.bz2" "$url"
-  check "$work/$name.tar.bz2" "$want"
-  mkdir -p "$work/$name"
-  tar -xjf "$work/$name.tar.bz2" -C "$work/$name"
-  inner=$(find "$work/$name" -mindepth 1 -maxdepth 1 -type d | head -1)
-  mkdir -p "$app/Contents/Resources/models/$name"
-  cp "$inner/model.int8.onnx" "$inner/tokens.txt" "$app/Contents/Resources/models/$name/"
-}
-fetch_asr asr-en "$(get ASR_EN_URL)" "$(get ASR_EN_SHA256)"
-if [ "${TIDYCUTS_WITH_MULTILINGUAL:-0}" = "1" ]; then
-  fetch_asr asr-multi "$(get ASR_MULTI_URL)" "$(get ASR_MULTI_SHA256)"
-fi
+# (The Auto Captions program is built from source by the release workflow, and its model is
+# downloaded by the app when it is first needed.)
 rm -rf "$work"
 echo "Studio Voice files are in $app"

@@ -753,6 +753,18 @@ pub fn export(
     if range.1 <= range.0 {
         return Err("There is nothing on the timeline to export.".into());
     }
+    // Camera-shake removal needs its one-off analysis before the first frame.
+    for t in &project.tracks {
+        for c in t.clips.iter().filter(|c| c.video.stabilize > 0.0) {
+            if let Some(m) = c.media_id.and_then(|m| project.media(m)) {
+                progress(ExportProgress {
+                    stage: "Analysing camera shake",
+                    ..Default::default()
+                });
+                crate::stabilize::finish(m, (c.source_in, c.source_out), cancel);
+            }
+        }
+    }
     let tmp = std::env::temp_dir().join(format!("tidycuts-export-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&tmp);
     let wav = tmp.join("mix.wav");

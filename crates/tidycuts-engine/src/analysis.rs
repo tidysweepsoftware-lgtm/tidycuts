@@ -3,7 +3,7 @@
 
 use crate::decode::{decode_still, VideoParams};
 use crate::levels::AudioLevels;
-use crate::mixer::{measure_loudness, LoudnessTable};
+use crate::mixer::LoudnessTable;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -25,6 +25,7 @@ impl Analysis {
     pub fn new(notify: Arc<dyn Fn() + Send + Sync>) -> Analysis {
         let levels = AudioLevels::default();
         levels.set_notify(notify.clone());
+        crate::stabilize::set_notify(notify.clone());
         Analysis {
             levels,
             notify: Some(notify),
@@ -59,29 +60,10 @@ impl Analysis {
         });
         None
     }
-
-    /// Starts measuring loudness for a file's audio stream if not done yet.
-    pub fn want_loudness(&self, media: &MediaItem, stream: u32) {
-        let key = (media.path.clone(), stream);
-        if self.loudness.lock().unwrap().contains_key(&key)
-            || !self
-                .started
-                .lock()
-                .unwrap()
-                .insert((media.path.clone(), stream, false))
-        {
-            return;
-        }
-        let table = self.loudness.clone();
-        thread::spawn(move || {
-            let gain = measure_loudness(&key.0, key.1).unwrap_or(1.0);
-            table.lock().unwrap().insert(key, gain);
-        });
-    }
 }
 
-/// Samples a few frames and works out levels and white balance that make
-/// the picture use the full range with neutral grays.
+/// Samples a few frames and works out the colour balance, brightness,
+/// contrast and colour strength that make the picture look right.
 fn measure_levels(media: &MediaItem) -> Option<Grade> {
     let mut p = VideoParams::for_media(media, 160, 90);
     p.alpha = true;
@@ -92,80 +74,25 @@ fn measure_levels(media: &MediaItem) -> Option<Grade> {
     } else {
         (1..=6).map(|i| len * i as f64 / 7.0).collect()
     };
-    let mut lumas: Vec<f32> = Vec::new();
-    let mut sum = [0f64; 3];
-    let mut n = 0f64;
+    let mut pixels: Vec<[f32; 3]> = Vec::new();
     for t in times {
         let Some(Pixels::Rgba(img)) = decode_still(&p, t) else {
             continue;
         };
         for px in img.pixels.as_chunks::<4>().0.iter() {
-            let (r, g, b) = (
+            // Transparent parts of a picture are not part of what is seen.
+            if px[3] < 128 {
+                continue;
+            }
+            pixels.push([
                 px[0] as f32 / 255.0,
                 px[1] as f32 / 255.0,
                 px[2] as f32 / 255.0,
-            );
-            lumas.push(0.2126 * r + 0.7152 * g + 0.0722 * b);
-            sum[0] += r as f64;
-            sum[1] += g as f64;
-            sum[2] += b as f64;
-            n += 1.0;
+            ]);
         }
     }
-    if lumas.is_empty() {
+    if pixels.is_empty() {
         return None;
     }
-    Some(levels_grade(
-        &mut lumas,
-        [
-            (sum[0] / n) as f32,
-            (sum[1] / n) as f32,
-            (sum[2] / n) as f32,
-        ],
-    ))
-}
-
-fn levels_grade(lumas: &mut [f32], avg: [f32; 3]) -> Grade {
-    lumas.sort_by(|a, b| a.total_cmp(b));
-    let pick = |q: f32| lumas[((lumas.len() - 1) as f32 * q) as usize];
-    let (lo, hi) = (pick(0.01), pick(0.99));
-    // grade.wgsl: black point = -0.12 * blacks, white point = 1 - 0.18 * whites.
-    // Pictures that already reach (nearly) black and white are left alone.
-    let blacks = if lo < 0.03 {
-        0.0
-    } else {
-        (-lo / 0.12).clamp(-1.0, 0.0)
-    };
-    let whites = if hi > 0.97 {
-        0.0
-    } else {
-        ((1.0 - hi) / 0.18).clamp(0.0, 1.0)
-    };
-    let [r, g, b] = avg;
-    let temperature = ((b - r) / (0.35 * (r + b).max(0.01))).clamp(-0.5, 0.5);
-    let tint = (((r + b) * 0.5 / g.max(0.01) - 1.0) / 0.25).clamp(-0.5, 0.5);
-    Grade {
-        blacks,
-        whites,
-        temperature,
-        tint,
-        vibrance: 0.15,
-        ..Default::default()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dull_bluish_pictures_get_stretched_and_warmed() {
-        let mut l: Vec<f32> = (0..100).map(|i| 0.2 + 0.5 * i as f32 / 99.0).collect();
-        let g = levels_grade(&mut l, [0.4, 0.45, 0.55]);
-        assert!(g.blacks < 0.0 && g.whites > 0.0);
-        assert!(g.temperature > 0.0);
-        let mut l: Vec<f32> = (0..100).map(|i| i as f32 / 99.0).collect();
-        let g = levels_grade(&mut l, [0.5, 0.5, 0.5]);
-        assert!(g.blacks.abs() < 0.01 && g.whites.abs() < 0.01 && g.temperature.abs() < 1e-6);
-    }
+    Some(crate::autograde::grade_from_pixels(&pixels))
 }

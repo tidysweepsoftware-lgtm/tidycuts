@@ -32,7 +32,9 @@ the permissive one.
 | [anstyle-parse](https://github.com/rust-cli/anstyle.git) | 1.0.0 | MIT OR Apache-2.0 |
 | [anstyle-query](https://github.com/rust-cli/anstyle.git) | 1.1.5 | MIT OR Apache-2.0 |
 | [anstyle-wincon](https://github.com/rust-cli/anstyle.git) | 3.0.11 | MIT OR Apache-2.0 |
+| [anymap3](https://github.com/reivilibre/anymap3) | 1.1.0 | BlueOak-1.0.0 OR MIT OR Apache-2.0 |
 | [arboard](https://github.com/1Password/arboard) | 3.6.1 | MIT OR Apache-2.0 |
+| [array-init](https://github.com/Manishearth/array-init/) | 2.1.0 | MIT OR Apache-2.0 |
 | [arrayref](https://github.com/droundy/arrayref) | 0.3.9 | BSD-2-Clause |
 | [arrayvec](https://github.com/bluss/arrayvec) | 0.7.8 | MIT OR Apache-2.0 |
 | [as-raw-xcb-connection](https://github.com/psychon/as-raw-xcb-connection) | 1.0.1 | MIT OR Apache-2.0 |
@@ -100,6 +102,7 @@ the permissive one.
 | [document-features](https://github.com/slint-ui/document-features) | 0.2.12 | MIT OR Apache-2.0 |
 | [downcast-rs](https://github.com/marcianx/downcast-rs) | 1.2.1 | MIT/Apache-2.0 |
 | [dpi](https://github.com/rust-windowing/winit) | 0.1.2 | Apache-2.0 AND MIT |
+| [easyfft](https://github.com/WalterSmuts/easyfft) | 0.4.2 | MIT OR Apache-2.0 |
 | [ecolor](https://github.com/emilk/egui) | 0.36.2 | MIT OR Apache-2.0 |
 | [eframe](https://github.com/emilk/egui/tree/main/crates/eframe) | 0.36.2 | MIT OR Apache-2.0 |
 | [egui](https://github.com/emilk/egui) | 0.36.2 | MIT OR Apache-2.0 |
@@ -140,6 +143,7 @@ the permissive one.
 | [futures-macro](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
 | [futures-task](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
 | [futures-util](https://github.com/rust-lang/futures-rs) | 0.3.34 | MIT OR Apache-2.0 |
+| [generic_singleton](https://github.com/WalterSmuts/generic_singleton) | 0.5.3 | MIT OR Apache-2.0 |
 | [gethostname](https://codeberg.org/swsnr/gethostname.rs.git) | 1.1.0 | Apache-2.0 |
 | [getrandom](https://github.com/rust-random/getrandom) | 0.3.4 | MIT OR Apache-2.0 |
 | [getrandom](https://github.com/rust-random/getrandom) | 0.4.3 | MIT OR Apache-2.0 |
@@ -188,6 +192,7 @@ the permissive one.
 | [kurbo](https://github.com/linebender/kurbo) | 0.13.1 | Apache-2.0 OR MIT |
 | [libc](https://github.com/rust-lang/libc) | 0.2.190 | MIT OR Apache-2.0 |
 | [libloading](https://github.com/nagisa/rust_libloading/) | 0.8.9 | ISC |
+| [libloading](https://github.com/nagisa/rust_libloading/) | 0.9.0 | ISC |
 | [libm](https://github.com/rust-lang/compiler-builtins) | 0.2.16 | MIT |
 | [libredox](https://gitlab.redox-os.org/redox-os/libredox.git) | 0.1.25 | MIT |
 | [linebender_resource_handle](https://github.com/linebender/raw_resource_handle) | 0.1.1 | Apache-2.0 OR MIT |
@@ -198,6 +203,7 @@ the permissive one.
 | [lock_api](https://github.com/Amanieu/parking_lot) | 0.4.14 | MIT OR Apache-2.0 |
 | [log](https://github.com/rust-lang/log) | 0.4.34 | MIT OR Apache-2.0 |
 | [mach2](https://github.com/JohnTitor/mach2) | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
+| [matrixmultiply](https://github.com/bluss/matrixmultiply/) | 0.3.11 | MIT/Apache-2.0 |
 | [memchr](https://github.com/BurntSushi/memchr) | 2.8.3 | Unlicense OR MIT |
 | [memmap2](https://github.com/RazrFalcon/memmap2-rs) | 0.9.11 | MIT OR Apache-2.0 |
 | [memoffset](https://github.com/Gilnaa/memoffset) | 0.9.1 | MIT |
@@ -206,11 +212,15 @@ the permissive one.
 | [moxcms](https://github.com/awxkee/moxcms.git) | 0.8.1 | BSD-3-Clause OR Apache-2.0 |
 | [naga](https://github.com/gfx-rs/wgpu) | 30.0.1 | MIT OR Apache-2.0 |
 | [naga-types](https://github.com/gfx-rs/wgpu) | 30.0.1 | MIT OR Apache-2.0 |
+| [ndarray](https://github.com/rust-ndarray/ndarray) | 0.17.2 | MIT OR Apache-2.0 |
 | [ndk](https://github.com/rust-mobile/ndk) | 0.9.0 | MIT OR Apache-2.0 |
 | [ndk-context](https://github.com/rust-windowing/android-ndk-rs) | 0.1.1 | MIT OR Apache-2.0 |
 | [ndk-sys](https://github.com/rust-mobile/ndk) | 0.6.0+11769913 | MIT OR Apache-2.0 |
+| [nnnoiseless](https://github.com/jneem/nnnoiseless) | 0.5.2 | BSD-3-Clause |
 | [nohash-hasher](https://github.com/paritytech/nohash-hasher) | 0.2.0 | Apache-2.0 OR MIT |
+| [num-complex](https://github.com/rust-num/num-complex) | 0.4.6 | MIT OR Apache-2.0 |
 | [num-derive](https://github.com/rust-num/num-derive) | 0.4.2 | MIT OR Apache-2.0 |
+| [num-integer](https://github.com/rust-num/num-integer) | 0.1.47 | MIT OR Apache-2.0 |
 | [num-traits](https://github.com/rust-num/num-traits) | 0.2.19 | MIT OR Apache-2.0 |
 | [num_enum](https://github.com/illicitonion/num_enum) | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
 | [num_enum_derive](https://github.com/illicitonion/num_enum) | 0.7.6 | BSD-3-Clause OR MIT OR Apache-2.0 |
@@ -249,6 +259,8 @@ the permissive one.
 | [orbclient](https://gitlab.redox-os.org/redox-os/orbclient) | 0.3.55 | MIT |
 | [ordered-float](https://github.com/reem/rust-ordered-float) | 5.5.0 | MIT |
 | [ordered-stream](https://github.com/danieldg/ordered-stream) | 0.2.0 | MIT OR Apache-2.0 |
+| [ort](https://github.com/pykeio/ort) | 2.0.0-rc.13 | MIT OR Apache-2.0 |
+| [ort-sys](https://github.com/pykeio/ort) | 2.0.0-rc.13 | MIT OR Apache-2.0 |
 | [owned_ttf_parser](https://github.com/alexheretic/owned-ttf-parser) | 0.25.1 | Apache-2.0 |
 | [parking](https://github.com/smol-rs/parking) | 2.2.1 | Apache-2.0 OR MIT |
 | [parking_lot](https://github.com/Amanieu/parking_lot) | 0.12.5 | MIT OR Apache-2.0 |
@@ -275,6 +287,7 @@ the permissive one.
 | [portable-atomic-util](https://github.com/taiki-e/portable-atomic-util) | 0.2.8 | Apache-2.0 OR MIT |
 | [potential_utf](https://github.com/unicode-org/icu4x) | 0.1.6 | Unicode-3.0 |
 | [presser](https://github.com/EmbarkStudios/presser) | 0.3.1 | MIT OR Apache-2.0 |
+| [primal-check](https://github.com/huonw/primal) | 0.3.4 | MIT OR Apache-2.0 |
 | [proc-macro-crate](https://github.com/bkchr/proc-macro-crate) | 3.5.0 | MIT OR Apache-2.0 |
 | [proc-macro2](https://github.com/dtolnay/proc-macro2) | 1.0.107 | MIT OR Apache-2.0 |
 | [profiling](https://github.com/aclysma/profiling) | 1.0.18 | MIT OR Apache-2.0 |
@@ -287,7 +300,9 @@ the permissive one.
 | [range-alloc](https://github.com/gfx-rs/range-alloc) | 0.1.5 | MIT OR Apache-2.0 |
 | [raw-window-handle](https://github.com/rust-windowing/raw-window-handle) | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
 | [raw-window-metal](https://github.com/rust-windowing/raw-window-metal) | 1.1.0 | MIT OR Apache-2.0 |
+| [rawpointer](https://github.com/bluss/rawpointer/) | 0.2.1 | MIT/Apache-2.0 |
 | [read-fonts](https://github.com/googlefonts/fontations) | 0.41.0 | MIT OR Apache-2.0 |
+| [realfft](https://github.com/HEnquist/realfft) | 3.5.0 | MIT |
 | [redox_syscall](https://gitlab.redox-os.org/redox-os/syscall) | 0.4.1 | MIT |
 | [redox_syscall](https://gitlab.redox-os.org/redox-os/syscall) | 0.5.18 | MIT |
 | [redox_syscall](https://gitlab.redox-os.org/redox-os/kernel) | 0.9.4 | MIT |
@@ -299,6 +314,7 @@ the permissive one.
 | [rustc-hash](https://github.com/rust-lang-nursery/rustc-hash) | 1.1.0 | Apache-2.0/MIT |
 | [rustc-hash](https://github.com/rust-lang/rustc-hash) | 2.1.3 | Apache-2.0 OR MIT |
 | [rustc_version](https://github.com/djc/rustc-version-rs) | 0.4.1 | MIT OR Apache-2.0 |
+| [rustfft](https://github.com/ejmahler/RustFFT) | 6.4.1 | MIT OR Apache-2.0 |
 | [rustix](https://github.com/bytecodealliance/rustix) | 0.38.44 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | [rustix](https://github.com/bytecodealliance/rustix) | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | [rustversion](https://github.com/dtolnay/rustversion) | 1.0.23 | MIT OR Apache-2.0 |
@@ -330,6 +346,7 @@ the permissive one.
 | [spirv](https://github.com/gfx-rs/rspirv) | 0.4.0+sdk-1.4.341.0 | Apache-2.0 |
 | [stable_deref_trait](https://github.com/storyyeller/stable_deref_trait) | 1.2.1 | MIT OR Apache-2.0 |
 | [static_assertions](https://github.com/nvzqz/static-assertions-rs) | 1.1.0 | MIT OR Apache-2.0 |
+| [strength_reduce](http://github.com/ejmahler/strength_reduce) | 0.2.4 | MIT OR Apache-2.0 |
 | [strict-num](https://github.com/RazrFalcon/strict-num) | 0.1.1 | MIT |
 | [syn](https://github.com/dtolnay/syn) | 2.0.119 | MIT OR Apache-2.0 |
 | [syn](https://github.com/dtolnay/syn) | 3.0.6 | MIT OR Apache-2.0 |
@@ -351,6 +368,7 @@ the permissive one.
 | [tracing](https://github.com/tokio-rs/tracing) | 0.1.44 | MIT |
 | [tracing-attributes](https://github.com/tokio-rs/tracing) | 0.1.31 | MIT |
 | [tracing-core](https://github.com/tokio-rs/tracing) | 0.1.36 | MIT |
+| [transpose](https://github.com/ejmahler/transpose) | 0.2.3 | MIT OR Apache-2.0 |
 | [ttf-parser](https://github.com/harfbuzz/ttf-parser) | 0.25.1 | MIT OR Apache-2.0 |
 | [type-map](https://github.com/kardeiz/type-map) | 0.5.1 | MIT/Apache-2.0 |
 | [uds_windows](https://github.com/haraldh/rust_uds_windows) | 1.2.1 | MIT |

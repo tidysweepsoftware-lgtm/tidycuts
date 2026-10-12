@@ -9,20 +9,28 @@ use egui_phosphor::regular as ph;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tidycuts_core::ClipId;
-use tidycuts_engine::captions::{self, Caption, Layout, Model};
+use tidycuts_engine::captions::{self, Caption, Layout};
+use tidycuts_engine::whispercpp;
 
 enum Job {
     /// Waiting for the person to press the button.
     Ready,
     /// Listening: how far along, 0..1.
     Working(f64),
+    /// Downloading the speech model: how far along, 0..1.
+    Downloading(f64),
+    Downloaded(Result<(), String>),
     Done(Result<Vec<Caption>, String>),
 }
 
 pub struct CaptionsDialog {
     clip: ClipId,
-    models: Vec<Model>,
-    model: usize,
+    /// Whether Whisper (whisper.cpp) and its model are installed.
+    ready: bool,
+    /// The program is here but the speech model has not been downloaded yet.
+    needs_model: bool,
+    /// The language, as an index into `whispercpp::LANGUAGES`.
+    language: usize,
     styles: Vec<(&'static str, &'static str)>,
     style: usize,
     /// 0 short, 1 medium, 2 long lines.
@@ -35,8 +43,9 @@ impl CaptionsDialog {
     pub fn new(clip: ClipId) -> CaptionsDialog {
         CaptionsDialog {
             clip,
-            models: captions::available_models(),
-            model: 0,
+            ready: whispercpp::available(),
+            needs_model: whispercpp::needs_model(),
+            language: 1,
             styles: app_captions::styles(),
             style: 0,
             lines: 1,
@@ -46,7 +55,7 @@ impl CaptionsDialog {
     }
 
     fn start(&mut self, app: &TidyCutsApp, ctx: &egui::Context) {
-        if self.models.is_empty() {
+        if !self.ready {
             return;
         }
         let Some((_, c)) = app.project.clip(self.clip) else {
@@ -58,7 +67,7 @@ impl CaptionsDialog {
         let path = media.path.clone();
         let stream = c.audio.stream.min(media.audio_streams.saturating_sub(1));
         let range = (c.source_in.as_secs_f64(), c.source_out.as_secs_f64());
-        let model = self.models[self.model.min(self.models.len() - 1)];
+        let language = whispercpp::LANGUAGES[self.language.min(whispercpp::LANGUAGES.len() - 1)].0;
         let layout = Layout {
             max_chars: [24, 32, 42][self.lines.min(2)],
             ..Layout::default()
@@ -67,12 +76,28 @@ impl CaptionsDialog {
         self.cancel.store(false, Ordering::Relaxed);
         let (job, cancel, ctx) = (self.job.clone(), self.cancel.clone(), ctx.clone());
         std::thread::spawn(move || {
-            let result = captions::transcribe(&path, stream, range, model, &cancel, |f| {
+            let progress = |f: f64| {
                 *job.lock().unwrap() = Job::Working(f);
                 ctx.request_repaint();
-            })
-            .map(|words| captions::group_captions(&words, layout));
+            };
+            let words = whispercpp::transcribe(&path, stream, range, language, &cancel, progress);
+            let result = words.map(|words| captions::group_captions(&words, layout));
             *job.lock().unwrap() = Job::Done(result);
+            ctx.request_repaint();
+        });
+    }
+
+    /// Downloads the speech model (once; the person pressed the button).
+    fn download(&mut self, ctx: &egui::Context) {
+        *self.job.lock().unwrap() = Job::Downloading(0.0);
+        self.cancel.store(false, Ordering::Relaxed);
+        let (job, cancel, ctx) = (self.job.clone(), self.cancel.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let result = whispercpp::download_model(&cancel, |f| {
+                *job.lock().unwrap() = Job::Downloading(f);
+                ctx.request_repaint();
+            });
+            *job.lock().unwrap() = Job::Downloaded(result);
             ctx.request_repaint();
         });
     }
@@ -81,6 +106,7 @@ impl CaptionsDialog {
     pub fn show(&mut self, app: &mut TidyCutsApp, ctx: &egui::Context) -> bool {
         let mut close = false;
         let mut go = false;
+        let mut get_model = false;
         // A finished search is applied to the timeline, then the window closes.
         let finished = {
             let mut j = self.job.lock().unwrap();
@@ -94,6 +120,25 @@ impl CaptionsDialog {
             }
         };
         let mut error: Option<String> = None;
+        let downloaded = {
+            let mut j = self.job.lock().unwrap();
+            if matches!(*j, Job::Downloaded(_)) {
+                match std::mem::replace(&mut *j, Job::Ready) {
+                    Job::Downloaded(r) => Some(r),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        };
+        match downloaded {
+            Some(Ok(())) => {
+                self.ready = whispercpp::available();
+                self.needs_model = whispercpp::needs_model();
+            }
+            Some(Err(e)) => error = Some(e),
+            None => {}
+        }
         if let Some(result) = finished {
             match result {
                 Ok(caps) if caps.is_empty() => {
@@ -124,9 +169,10 @@ impl CaptionsDialog {
                 Err(e) => error = Some(e),
             }
         }
-        let working = match *self.job.lock().unwrap() {
-            Job::Working(f) => Some(f),
-            _ => None,
+        let (working, downloading) = match *self.job.lock().unwrap() {
+            Job::Working(f) => (Some(f), false),
+            Job::Downloading(f) => (Some(f), true),
+            _ => (None, false),
         };
         let (_, keys) = window(ctx, "captions", 500.0, |ui| {
             if header(
@@ -142,12 +188,12 @@ impl CaptionsDialog {
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.spacing_mut().item_spacing = egui::vec2(8.0, 10.0);
-                    if self.models.is_empty() {
+                    if !self.ready && !self.needs_model {
                         ui.add(
                             egui::Label::new(
                                 RichText::new(
                                     "Captions need the speech files that come with TidyCuts (the \
-                                     models and onnxruntime folders next to the program). They \
+                                     whisper-cpp and models folders next to the program). They \
                                      were not found here.",
                                 )
                                 .color(theme::WARNING),
@@ -163,25 +209,16 @@ impl CaptionsDialog {
                     field(ui, "Clip", |ui| {
                         ui.label(RichText::new(clip_name).color(theme::TEXT));
                     });
-                    if self.models.len() > 1 {
-                        field(ui, "Language", |ui| {
-                            let labels: Vec<&str> = self
-                                .models
-                                .iter()
-                                .map(|m| match m {
-                                    Model::English => "English",
-                                    Model::Multilingual => "Other languages",
-                                })
-                                .collect();
-                            ui.add_enabled_ui(working.is_none(), |ui| {
-                                widgets::segmented(ui, &mut self.model, &labels);
-                            });
+                    field(ui, "Language", |ui| {
+                        let options: Vec<(usize, &str)> = whispercpp::LANGUAGES
+                            .iter()
+                            .enumerate()
+                            .map(|(i, l)| (i, l.1))
+                            .collect();
+                        ui.add_enabled_ui(working.is_none(), |ui| {
+                            widgets::choice(ui, "captions-language", &mut self.language, &options);
                         });
-                    } else {
-                        field(ui, "Language", |ui| {
-                            ui.label(RichText::new(self.models[0].label()).color(theme::TEXT));
-                        });
-                    }
+                    });
                     ui.add_enabled_ui(working.is_none(), |ui| {
                         field(ui, "Look", |ui| {
                             let names: Vec<&str> = self.styles.iter().map(|s| s.1).collect();
@@ -205,10 +242,28 @@ impl CaptionsDialog {
                         )
                         .wrap(),
                     );
+                    if self.needs_model && working.is_none() {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(
+                                    "Auto Captions needs a speech model (574 MB). It is \
+                                     downloaded from the internet once, the first time; \
+                                     after that everything works without a connection.",
+                                )
+                                .color(theme::TEXT_DIM),
+                            )
+                            .wrap(),
+                        );
+                    }
                     if let Some(f) = working {
+                        let what = if downloading {
+                            "Downloading"
+                        } else {
+                            "Listening"
+                        };
                         ui.add(
                             egui::ProgressBar::new(f as f32)
-                                .text(format!("Listening… {:.0}%", f * 100.0))
+                                .text(format!("{what}… {:.0}%", f * 100.0))
                                 .animate(true),
                         );
                         ctx.request_repaint_after(std::time::Duration::from_millis(200));
@@ -228,10 +283,20 @@ impl CaptionsDialog {
                     if secondary(ui, "Close").clicked() {
                         close = true;
                     }
-                    if primary(
+                    if self.needs_model {
+                        if primary(
+                            ui,
+                            &format!("{}  Download the speech model", ph::DOWNLOAD_SIMPLE),
+                            working.is_none(),
+                        )
+                        .clicked()
+                        {
+                            get_model = true;
+                        }
+                    } else if primary(
                         ui,
                         &format!("{}  Create captions", ph::SUBTITLES),
-                        !self.models.is_empty() && working.is_none(),
+                        self.ready && working.is_none(),
                     )
                     .clicked()
                     {
@@ -242,6 +307,9 @@ impl CaptionsDialog {
         });
         if go {
             self.start(app, ctx);
+        }
+        if get_model {
+            self.download(ctx);
         }
         let done = close || keys.escape;
         if done {

@@ -150,8 +150,7 @@ fn volume(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
             kit::toggle_row(ui, "Normalize", &mut c.audio.normalize);
             kit::row_hint(
                 ui,
-                "Normalize evens out the loudness to a standard level (-14 LUFS), so \
-                 quiet and loud clips match.",
+                "One click: evens out loud and quiet parts, brings the clip to a                  comfortable loudness (-16 LUFS) and stops it from ever clipping.",
             );
             kit::slider_row(
                 ui,
@@ -162,9 +161,23 @@ fn volume(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
                 "",
                 45.0,
             );
-            kit::row_hint(ui, "Lifts quiet speech and holds loud parts.");
+            kit::row_hint(
+                ui,
+                if c.audio.normalize {
+                    "Lifts quiet speech and holds loud parts. Normalize already does this."
+                } else {
+                    "Lifts quiet speech and holds loud parts."
+                },
+            );
             kit::toggle_row(ui, "Peak Limiter", &mut c.audio.limiter);
-            kit::row_hint(ui, "Stops loud peaks from distorting.");
+            kit::row_hint(
+                ui,
+                if c.audio.normalize {
+                    "Stops loud peaks from distorting. Normalize already does this."
+                } else {
+                    "Stops loud peaks from distorting."
+                },
+            );
         });
     if out.reset {
         c.volume = Animatable::constant(100.0);

@@ -178,6 +178,8 @@ pub struct Prefs {
     pub mcp_token: String,
     /// The welcome tour has been shown once.
     pub tour_done: bool,
+    /// Hearing guard for playback: 0 off, 1 normal (-10 LUFS), 2 careful (-16 LUFS).
+    pub hearing_guard: u8,
 }
 
 impl Default for Prefs {
@@ -211,6 +213,7 @@ impl Default for Prefs {
             mcp_port: 47861,
             mcp_token: String::new(),
             tour_done: false,
+            hearing_guard: 1,
         }
     }
 }
@@ -320,6 +323,16 @@ fn backups_in(dir: &Path) -> Vec<(PathBuf, std::time::SystemTime)> {
         .collect();
     out.sort_by_key(|(_, t)| std::cmp::Reverse(*t));
     out
+}
+
+/// The loudest level (LUFS) the hearing guard allows for a setting of the
+/// preference, or `None` when it is off.
+pub fn guard_ceiling(level: u8) -> Option<f32> {
+    match level {
+        0 => None,
+        2 => Some(-16.0),
+        _ => Some(-10.0),
+    }
 }
 
 impl Prefs {

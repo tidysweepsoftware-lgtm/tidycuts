@@ -118,6 +118,12 @@ impl Engine {
         }
     }
 
+    /// Sets the hearing guard (see `prefs::guard_ceiling`).
+    pub fn set_hearing_guard(&self, level: u8) {
+        self.playback
+            .set_hearing_guard(crate::prefs::guard_ceiling(level));
+    }
+
     pub fn set_hardware_decoding(&mut self, on: bool) {
         self.hwaccel = on;
         self.playback.set_hardware_decoding(on);

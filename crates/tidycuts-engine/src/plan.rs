@@ -156,34 +156,48 @@ impl Planner<'_> {
                 .map(|c| c.video.track_matte)
                 .unwrap_or(TrackMatte::None);
             if matte_mode != TrackMatte::None && i + 1 < per_track.len() {
-                let above = std::mem::take(&mut per_track[i + 1].1);
-                let matte = above.into_iter().find_map(|it| match it {
-                    Item::Layer(l) => Some(l),
-                    _ => None,
-                });
-                let mut layers: Vec<Layer> = Vec::new();
-                for it in track_items {
-                    match it {
-                        Item::Layer(l) => layers.push(l),
-                        other => items.push(other),
+                // The stencil is the first picture on the track above. Without
+                // one (nothing there at this moment) the clip is shown as it is:
+                // taking its picture away would leave the screen black.
+                let has_matte = per_track[i + 1]
+                    .1
+                    .iter()
+                    .any(|it| matches!(it, Item::Layer(_)));
+                if has_matte {
+                    let above = std::mem::take(&mut per_track[i + 1].1);
+                    let matte = above.into_iter().find_map(|it| match it {
+                        Item::Layer(l) => Some(l),
+                        _ => None,
+                    });
+                    let mut layers: Vec<Layer> = Vec::new();
+                    for it in track_items {
+                        match it {
+                            Item::Layer(l) => layers.push(l),
+                            other => items.push(other),
+                        }
                     }
-                }
-                if let (Some(matte), Some(layer)) = (matte, layers.pop()) {
-                    for l in layers {
-                        items.push(Item::Layer(l));
+                    match (matte, layers.pop()) {
+                        (Some(matte), Some(layer)) => {
+                            for l in layers {
+                                items.push(Item::Layer(l));
+                            }
+                            let mode = match matte_mode {
+                                TrackMatte::Alpha => 1,
+                                TrackMatte::AlphaInverted => 2,
+                                TrackMatte::Luma => 3,
+                                _ => 4,
+                            };
+                            items.push(Item::Matte(MatteItem { layer, matte, mode }));
+                        }
+                        (_, layer) => {
+                            // This track has no picture now: nothing to stencil.
+                            items.extend(layers.into_iter().map(Item::Layer));
+                            items.extend(layer.map(Item::Layer));
+                        }
                     }
-                    let mode = match matte_mode {
-                        TrackMatte::Alpha => 1,
-                        TrackMatte::AlphaInverted => 2,
-                        TrackMatte::Luma => 3,
-                        _ => 4,
-                    };
-                    items.push(Item::Matte(MatteItem { layer, matte, mode }));
-                } else {
-                    items.extend(layers.into_iter().map(Item::Layer));
+                    skip_next = true;
+                    continue;
                 }
-                skip_next = true;
-                continue;
             }
             items.extend(track_items);
         }
@@ -302,6 +316,7 @@ impl Planner<'_> {
                 .rev()
                 .find_map(|i| match i {
                     Item::Layer(l) => Some(l),
+                    Item::Matte(m) => Some(m.layer),
                     _ => None,
                 })
         };
@@ -630,6 +645,33 @@ impl Planner<'_> {
             place.center[0] += centre[0];
             place.center[1] += centre[1];
         }
+        // Camera-shake removal: move, turn and zoom the picture by what the
+        // analysis says this frame needs (once that analysis is ready).
+        if c.video.stabilize > 0.0 {
+            if let Some(m) = media {
+                let src_t = c.source_time(t).as_secs_f64().max(0.0);
+                let range = (c.source_in, c.source_out);
+                if let Some(s) = crate::stabilize::correction(m, range, c.video.stabilize, src_t) {
+                    let (fx, fy) = (c.transform.flip_horizontal, c.transform.flip_vertical);
+                    let mut off = [
+                        s.dx * place.base[0] * place.scale[0],
+                        s.dy * place.base[1] * place.scale[1],
+                    ];
+                    if fx {
+                        off[0] = -off[0];
+                    }
+                    if fy {
+                        off[1] = -off[1];
+                    }
+                    let off = rotate(off, place.rotation);
+                    place.center[0] += off[0];
+                    place.center[1] += off[1];
+                    place.rotation += if fx != fy { -s.turn } else { s.turn };
+                    place.scale[0] *= s.zoom;
+                    place.scale[1] *= s.zoom;
+                }
+            }
+        }
         // Motion blur: blur along how far the clip moves in half a frame.
         if c.video.motion_blur > 0.0 {
             let dt = Time::from_secs_f64(0.5 / self.fps());
@@ -829,6 +871,44 @@ mod tests {
     }
 
     #[test]
+    fn stabilization_moves_and_zooms_the_picture_by_the_analysis() {
+        let (mut p, m) = project();
+        let c = p.append_clip(m).unwrap();
+        let (a, b) = {
+            let clip = p.clip(c).unwrap().1;
+            (clip.source_in, clip.source_out)
+        };
+        // A camera that shakes sideways: +-1% of the width every frame.
+        let steps: Vec<[f32; 3]> = (0..300)
+            .map(|i| [if i % 2 == 0 { 0.01 } else { -0.01 }, 0.0, 0.0])
+            .collect();
+        let media = p.media(m).unwrap().clone();
+        crate::stabilize::seed(&media, (a, b), 30.0, steps.clone());
+        let at = 2.0;
+        let (before, _) = plan(&p, at);
+        let Item::Layer(l0) = &before.frame.items[0] else {
+            panic!()
+        };
+        assert_eq!(l0.center, [960.0, 540.0]);
+        assert_eq!(l0.scale, [1.0, 1.0]);
+        p.clip_mut(c).unwrap().video.stabilize = 60.0;
+        let (after, _) = plan(&p, at);
+        let Item::Layer(l1) = &after.frame.items[0] else {
+            panic!()
+        };
+        let want = crate::stabilize::smooth(&steps, 30.0, 60.0).at(at, 30.0);
+        assert!(want.dx.abs() > 0.001, "the test needs a real correction");
+        let moved = l1.center[0] - 960.0;
+        assert!(
+            (moved - want.dx * 1920.0).abs() < 0.01,
+            "{moved} vs {}",
+            want.dx * 1920.0
+        );
+        assert!((l1.scale[0] - want.zoom).abs() < 1e-6 && want.zoom > 1.0);
+        assert!((l1.center[1] - 540.0).abs() < 1e-3);
+    }
+
+    #[test]
     fn a_clip_fills_the_frame_and_maps_time() {
         let (mut p, m) = project();
         let c = p.append_clip(m).unwrap();
@@ -916,6 +996,39 @@ mod tests {
         let (f, _) = plan(&p, 1.0);
         assert_eq!(f.frame.items.len(), 1);
         assert!(matches!(&f.frame.items[0], Item::Matte(m) if m.mode == 3));
+    }
+
+    #[test]
+    fn track_matte_with_nothing_above_still_shows_the_clip() {
+        // Turning on Track Matte before there is a stencil used to make the
+        // picture disappear.
+        let (mut p, m) = project();
+        let c = p.append_clip(m).unwrap();
+        p.clip_mut(c).unwrap().video.track_matte = TrackMatte::Alpha;
+        // An empty track above, and then nothing at all above.
+        p.add_track(TrackKind::Video).unwrap();
+        let (f, _) = plan(&p, 1.0);
+        assert_eq!(f.frame.items.len(), 1);
+        assert!(matches!(&f.frame.items[0], Item::Layer(_)));
+        let (mut p2, m2) = project();
+        let c2 = p2.append_clip(m2).unwrap();
+        p2.clip_mut(c2).unwrap().video.track_matte = TrackMatte::Luma;
+        let (f2, _) = plan(&p2, 1.0);
+        assert!(matches!(&f2.frame.items[0], Item::Layer(_)));
+    }
+
+    #[test]
+    fn a_clip_above_the_matte_track_keeps_playing_when_there_is_no_stencil() {
+        let (mut p, m) = project();
+        let c = p.append_clip(m).unwrap();
+        p.clip_mut(c).unwrap().video.track_matte = TrackMatte::Alpha;
+        let v2 = p.add_track(TrackKind::Video).unwrap();
+        // The track above has a clip only later, so there is no stencil at 1 s.
+        p.add_generated(Generator::Solid([1.0; 4]), secs(1.0), v2, secs(3.0))
+            .unwrap();
+        let (f, _) = plan(&p, 1.0);
+        assert_eq!(f.frame.items.len(), 1);
+        assert!(matches!(&f.frame.items[0], Item::Layer(_)));
     }
 
     #[test]

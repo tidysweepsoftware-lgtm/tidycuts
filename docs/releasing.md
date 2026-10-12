@@ -30,6 +30,22 @@ workflow, `.github/workflows/release.yml`.
 Leave "Also make a draft release" unticked to just try the installers. Publishing the
 draft creates the version tag (for example `v1.0.0`) on the commit that was built.
 
+## The two model releases
+
+Two big files are kept as assets of their own releases, not in git:
+
+- `voice-model-1`, a **draft** release holding `mossformer2_se_48k.onnx` (Studio Voice).
+  The workflow downloads it with its own token while building; its checksum is in
+  `packaging/voice-assets.txt`.
+- `caption-model-1`, a **public pre-release** holding `ggml-large-v3-turbo-q5_0.bin` (the
+  Whisper model, 574 MB). The app downloads it from there, once, when the person presses
+  *Download the speech model*, so it must be public (a pre-release does not count as the
+  "latest" release, so Check for Updates is not affected). Its size and checksum are in
+  `crates/tidycuts-engine/src/whispercpp.rs`. If it is missing, the app falls back to
+  Hugging Face.
+
+Create them once with `gh release create <tag> <file>`; a new model needs a new tag.
+
 ## Before each public release
 
 - Run `cargo deny check` (see `deny.toml`) and read the licence list again.

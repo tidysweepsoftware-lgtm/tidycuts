@@ -1274,22 +1274,20 @@ fn listen(
     a: &Args,
     layout: tidycuts_engine::captions::Layout,
 ) -> Result<(ClipId, Vec<tidycuts_engine::captions::Caption>), String> {
-    use tidycuts_engine::captions::{self, Model};
+    use tidycuts_engine::captions;
     let id = clip_id(app, a.need_str("clip")?)?;
     if let Some(why) = crate::captions::unsuitable(app, id) {
         return Err(why.into());
     }
-    let models = captions::available_models();
-    let model = match a.str("language") {
-        Some("multilingual") => Model::Multilingual,
-        Some("english") => Model::English,
-        _ => *models
-            .first()
-            .ok_or("The speech files are not installed.")?,
-    };
-    if !models.contains(&model) {
-        return Err("That language's speech model is not installed.".into());
+    if !tidycuts_engine::whispercpp::available() {
+        return Err("The speech files are not installed.".into());
     }
+    // "english", "multilingual" or a language code such as "es".
+    let language = match a.str("language") {
+        None | Some("english") => "en",
+        Some("multilingual") => "auto",
+        Some(code) => code,
+    };
     let (_, c) = app.project.clip(id).ok_or("That clip is gone.")?;
     let media = c
         .media_id
@@ -1297,11 +1295,11 @@ fn listen(
         .ok_or("That clip has no sound file.")?;
     let stream = c.audio.stream.min(media.audio_streams.saturating_sub(1));
     let never = std::sync::atomic::AtomicBool::new(false);
-    let words = captions::transcribe(
+    let words = tidycuts_engine::whispercpp::transcribe(
         &media.path,
         stream,
         (c.source_in.as_secs_f64(), c.source_out.as_secs_f64()),
-        model,
+        language,
         &never,
         |_| {},
     )?;

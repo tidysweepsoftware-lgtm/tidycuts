@@ -11,14 +11,13 @@ ORT_VERSION=1.28.3
 ORT_WIN_SHA256=1d6fab48e85f948436af7c8c971d2c145cf224e2c444755dec894f8b0de11a83
 ORT_MAC_SHA256=c436bd9f47dbce6f6311ccc21de97f829b3c862c09d24aa321958cb72f0a1d32
 
-# Automatic captions: speech-recognition models by NVIDIA NeMo, converted for ONNX Runtime by
-# the sherpa-onnx project and downloaded from its release (they hold model.int8.onnx and
-# tokens.txt, which go into models/asr-en and models/asr-multi).
-# English: CC-BY-4.0 (nvidia/stt_en_fastconformer_hybrid_large_pc). Always included.
-ASR_EN_URL=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-ctc-en-24500-int8.tar.bz2
-ASR_EN_SHA256=b09553b0f4cbb0717bbad2f2b996641f63e1482bd5e4ffa4443da7cf36ab0b8e
-# Ten European languages. Its licence has not been confirmed from NVIDIA's pages, so it is only
-# included when TIDYCUTS_WITH_MULTILINGUAL=1 is set for the fetch script.
-ASR_MULTI_URL=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-fast-conformer-ctc-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2
-ASR_MULTI_SHA256=2116eebbfc923ee3332a244e8c933ccc1b7e6783070f7bf842d0b5fc64f6ae33
-
+# Automatic captions: the whisper.cpp program (MIT), which runs OpenAI's Whisper (MIT). The
+# program ships with TidyCuts in the whisper-cpp folder. On Windows it is the official build
+# from the whisper.cpp releases; on the Mac the release workflow builds it from the same
+# version of the source (WHISPER_CPP_TAG). The Whisper model itself (574 MB,
+# ggml-large-v3-turbo-q5_0.bin) is not packaged: TidyCuts downloads it, once, when the person
+# presses Download in the Auto Captions window (see crates/tidycuts-engine/src/whispercpp.rs,
+# which also holds its checksum). Release `caption-model-1` of the repository holds a copy.
+WHISPER_CPP_TAG=v1.9.5
+WHISPER_CPP_WIN_URL=https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip
+WHISPER_CPP_WIN_SHA256=6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb

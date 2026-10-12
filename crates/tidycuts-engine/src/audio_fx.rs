@@ -112,6 +112,9 @@ pub fn clear_enhance(a: &mut AudioSettings) {
     a.eq_preset.clear();
 }
 
+/// How strongly Normalize levels a clip (the Leveler's scale): enough to bring
+/// a quiet part up by about 23 dB, so quiet and loud parts end up close.
+pub const NORMALIZE_LEVELER: f64 = 45.0;
 fn tempo_chain(mut factor: f64, out: &mut Vec<String>) {
     // atempo takes 0.5..=100 per instance; chain for slower speeds.
     while factor < 0.5 {
@@ -196,11 +199,32 @@ pub fn clip_filters(clip: &Clip, sr: u32) -> Vec<String> {
             ));
         }
     }
-    if a.leveler > 0.0 {
+    // Normalize does the whole job in one click: it evens out loud and quiet
+    // parts (the Leveler, at least as strong as the one set), tightens what is
+    // left, and (last in the chain) holds the peaks.
+    let leveler = if a.normalize {
+        a.leveler.max(NORMALIZE_LEVELER)
+    } else {
+        a.leveler
+    };
+    if leveler > 0.0 {
         // Lifts quiet speech and holds loud parts, a window at a time. The
-        // most it may lift grows from +6 dB to +30 dB with the amount.
-        let gain = 2.0 + a.leveler.clamp(0.0, 100.0) * 0.28;
-        f.push(format!("dynaudnorm=f=250:g=21:p=0.9:m={gain:.1}:r=0"));
+        // most it may lift grows from 6x (+16 dB) to 30x (+30 dB) with the
+        // amount. Sound quieter than the threshold (room tone) is not lifted.
+        let gain = 2.0 + leveler.clamp(0.0, 100.0) * 0.28;
+        // Normalize also holds the average loudness steady (to about -20 dBFS
+        // RMS), not just the peaks, so loud and quiet parts really meet.
+        let (frame, smooth, rms) = if a.normalize {
+            (150, 9, 0.10)
+        } else {
+            (250, 21, 0.0)
+        };
+        f.push(format!(
+            "dynaudnorm=f={frame}:g={smooth}:p=0.9:m={gain:.1}:t=0.01:r={rms}"
+        ));
+    }
+    if a.normalize {
+        f.push("acompressor=threshold=0.063:ratio=3:attack=8:release=120:makeup=2".into());
     }
     if a.pitch.abs() > 0.01 {
         pitch_chain(2f64.powf(a.pitch.clamp(-12.0, 12.0) / 12.0), sr, &mut f);
@@ -224,6 +248,7 @@ pub fn clip_filters(clip: &Clip, sr: u32) -> Vec<String> {
     if a.limiter {
         // Last, so nothing above can push a peak past -1 dB. `level=0` keeps
         // the limiter from scaling the whole sound back up afterwards.
+        // (Normalize has its own limiter in the mixer, after its last gain.)
         f.push("alimiter=limit=0.89:attack=5:release=80:level=0".into());
     }
     f
@@ -281,6 +306,32 @@ mod tests {
         assert!(f.ends_with("level=0"), "{f}");
         // 50% lifts quiet sound by up to 16x (+24 dB).
         assert!(f.contains("m=16.0"), "{f}");
+    }
+
+    #[test]
+    fn normalize_levels_and_tightens_the_clip_and_leaves_the_peaks_to_the_mixer() {
+        let mut c = clip();
+        c.audio.normalize = true;
+        let f = clip_filters(&c, 48000).join(",");
+        // Levelling by loudness (not just peaks), then a gentle compressor.
+        assert!(
+            f.contains("dynaudnorm=f=150:g=9:p=0.9:m=14.6:t=0.01:r=0.1"),
+            "{f}"
+        );
+        assert!(f.find("dynaudnorm").unwrap() < f.find("acompressor").unwrap());
+        // The limiter after the last gain is the mixer's own.
+        assert!(!f.contains("alimiter"), "{f}");
+        // A stronger Leveler than Normalize's own is kept.
+        c.audio.leveler = 80.0;
+        assert!(clip_filters(&c, 48000).join(",").contains("m=24.4"));
+        // The Leveler on its own is unchanged.
+        let mut d = clip();
+        d.audio.leveler = 50.0;
+        let g = clip_filters(&d, 48000).join(",");
+        assert!(
+            g.contains("f=250:g=21") && g.contains("r=0") && !g.contains("acompressor"),
+            "{g}"
+        );
     }
 
     #[test]

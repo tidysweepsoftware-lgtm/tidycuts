@@ -643,25 +643,16 @@ impl Project {
         if magnetic {
             self.pack_track(track_id);
             self.ripple_others(track_id, old_end, delta);
-        } else if delta > Time::ZERO {
+        } else if delta != Time::ZERO {
+            // Later clips follow the end in both directions, so slower then
+            // faster then 1x puts everything back where it was.
             let t = self.track_mut(track_id).unwrap();
-            let push = t
+            for c in t
                 .clips
-                .iter()
+                .iter_mut()
                 .filter(|c| c.id != clip_id && c.start >= old_end)
-                .map(|c| new_end - c.start)
-                .max()
-                .unwrap_or(Time::ZERO);
-            if push > Time::ZERO {
-                let ids: Vec<ClipId> = t
-                    .clips
-                    .iter()
-                    .filter(|c| c.id != clip_id && c.start >= old_end)
-                    .map(|c| c.id)
-                    .collect();
-                for c in t.clips.iter_mut().filter(|c| ids.contains(&c.id)) {
-                    c.start += push;
-                }
+            {
+                c.start += delta;
             }
         }
         true
@@ -1176,6 +1167,51 @@ mod tests {
         assert!(p.set_speed(a, 4.0));
         assert_eq!(starts(&p, main), vec![0.0, 1.0]);
         assert_eq!(p.clip(a).unwrap().1.source_time(s(0.5)), s(2.0));
+    }
+
+    #[test]
+    fn going_slower_then_faster_then_back_to_1x_restores_the_clip() {
+        let presets = [0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0, 8.0, 16.0];
+        for first in presets {
+            for second in presets {
+                let mut p = Project::default();
+                let m = p.add_media(video(230.83));
+                let main = p.main_track().unwrap();
+                let a = p.append_clip(m).unwrap();
+                p.append_clip(m).unwrap();
+                let before = starts(&p, main);
+                let (len, src) = {
+                    let c = p.clip(a).unwrap().1;
+                    (c.duration(), (c.source_in, c.source_out))
+                };
+                assert!(p.set_speed(a, first));
+                assert!(p.set_speed(a, second));
+                assert!(p.set_speed(a, 1.0));
+                let c = p.clip(a).unwrap().1;
+                assert_eq!(c.speed, 1.0, "{first} {second}");
+                assert_eq!(c.duration(), len, "{first} {second}");
+                assert_eq!((c.source_in, c.source_out), src, "{first} {second}");
+                assert_eq!(starts(&p, main), before, "{first} {second}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_free_track_clip_keeps_its_neighbours_in_step_with_its_speed() {
+        // On an ordinary (non-magnetic) track a clip that gets shorter leaves
+        // a gap; getting longer again must not push the next clip any further
+        // than where it started.
+        let mut p = Project::default();
+        let m = p.add_media(video(10.0));
+        let v2 = p.add_track(TrackKind::Video).unwrap();
+        let item = p.media(m).unwrap().clone();
+        let a = p.place_clip(Clip::new(&item, s(0.0)), v2, s(0.0)).unwrap();
+        let b = p.place_clip(Clip::new(&item, s(0.0)), v2, s(10.0)).unwrap();
+        assert!(p.set_speed(a, 0.5));
+        assert!(p.set_speed(a, 2.0));
+        assert!(p.set_speed(a, 1.0));
+        assert_eq!(p.clip(a).unwrap().1.duration(), s(10.0));
+        assert_eq!(p.clip(b).unwrap().1.start, s(10.0));
     }
 
     fn ramped(p: &mut Project, secs: f64, preset: RampPreset) -> ClipId {

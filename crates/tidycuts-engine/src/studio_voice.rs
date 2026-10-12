@@ -313,13 +313,6 @@ fn runtime_ready(lib: &std::path::Path) -> Result<(), String> {
     .clone()
 }
 
-/// Loads ONNX Runtime from the file next to the program (once). Other parts
-/// of the engine that use models share it.
-pub(crate) fn ensure_runtime() -> Result<(), String> {
-    let lib = runtime_file().ok_or("ONNX Runtime is not installed")?;
-    runtime_ready(&lib)
-}
-
 fn shared() -> &'static Mutex<Weak<Studio>> {
     static S: OnceLock<Mutex<Weak<Studio>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(Weak::new()))
