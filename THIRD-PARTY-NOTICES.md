@@ -19,6 +19,35 @@ later. The licence text is installed next to the programs in
 <https://ffmpeg.org/download.html>; to use your own build, put it next to
 TidyCuts or set `TIDYCUTS_FFMPEG_DIR`. FFmpeg is a trademark of Fabrice Bellard.
 
+## RNNoise (Voice Clean-up)
+
+Voice Clean-up uses the RNNoise neural network by Jean-Marc Valin (Xiph.Org,
+Mozilla), through its Rust port **nnnoiseless** by Joe Neeman. It runs inside
+TidyCuts, on your computer, and the network's weights are part of the crate.
+Both are under the **BSD 3-Clause** licence:
+
+- <https://github.com/xiph/rnnoise>
+- <https://github.com/jneem/nnnoiseless>
+
+Copyright (c) 2017 Mozilla, 2008-2018 Xiph.Org Foundation, 2013 Jean-Marc
+Valin, CSIRO and Octasic. Redistribution and use in source and binary forms
+are permitted under the conditions of that licence; the names of the
+copyright holders may not be used to endorse products made with it.
+
+## Studio Voice (voice model and ONNX Runtime)
+
+- **MossFormer2_SE_48K**, a speech-enhancement network from ClearerVoice-Studio
+  (Alibaba Speech Lab), under the **Apache License 2.0**:
+  <https://github.com/modelscope/ClearerVoice-Studio> and its model card at
+  <https://huggingface.co/alibabasglab/MossFormer2_SE_48K>. Per that model card it was
+  trained on large datasets that include open-source and private data. TidyCuts
+  includes the weights converted to the ONNX format (`models/mossformer2_se_48k.onnx`);
+  `tools/voice-model/` has the conversion script. No other change was made.
+- **ONNX Runtime** by Microsoft, under the **MIT** licence, shipped as a library next
+  to the program (`onnxruntime/`, with its own `ONNXRUNTIME-LICENSE.txt` and
+  `ONNXRUNTIME-THIRD-PARTY-NOTICES.txt`): <https://github.com/microsoft/onnxruntime>.
+  The Rust crate **ort** (MIT or Apache-2.0) loads it.
+
 ## Fonts
 
 All fonts are in `crates/tidycuts-render/fonts/` and are free for any use,

@@ -18,7 +18,9 @@ pub mod scrub;
 pub mod snapshot;
 pub mod statics;
 pub mod stretch;
+pub mod studio_voice;
 pub mod sync;
+pub mod voice_clean;
 
 pub use frames::{FrameProvider, FrameServer, PreviewFrames, StreamFrames};
 pub use plan::{Planner, PreparedFrame};

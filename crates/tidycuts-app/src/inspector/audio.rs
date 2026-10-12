@@ -1,6 +1,7 @@
-//! Audio tab: Detach Audio, volume in dB with keyframes, fades, balance
-//! and pitch, noise/wind/hum removal and de-essing, a 10-band equalizer
-//! with presets, voice changer, ducking and the audio stream picker.
+//! Audio tab: Detach Audio, one-click Enhance Speech, volume in dB with
+//! keyframes and leveling, fades, balance and pitch, Voice Clean-up,
+//! hiss/wind/hum removal and de-essing, a 10-band equalizer with presets,
+//! voice changer, ducking and the audio stream picker.
 
 use super::kit::{self, Sec};
 use super::{Action, Kind, Panel};
@@ -9,15 +10,20 @@ use crate::widgets::{self, db_to_percent, percent_to_db};
 use egui::{Align2, Color32, CornerRadius, CursorIcon, FontId, Rect, Sense, Shape, Stroke, Ui};
 use egui_phosphor::regular as ph;
 use tidycuts_core::{Animatable, AudioSettings, Clip, Time, TrackKind};
-use tidycuts_engine::audio_fx::{EQ_BANDS, EQ_PRESETS, VOICE_EFFECTS};
+use tidycuts_engine::audio_fx::{
+    clear_enhance, enhance_speech, is_enhanced, EQ_BANDS, EQ_PRESETS, VOICE_EFFECTS,
+};
+use tidycuts_engine::voice_clean::{self, Status};
 
 pub fn show(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
     if p.track == TrackKind::Video && p.kind == Kind::Video {
         detach(p, ui, c);
     }
+    enhance(ui, c);
     volume(p, ui, c);
     fades(ui, c);
     balance(ui, c);
+    voice_cleanup(p, ui, c);
     denoise(ui, &mut c.audio);
     equalizer(ui, &mut c.audio);
     voice(ui, &mut c.audio);
@@ -56,10 +62,74 @@ fn detach(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
     ui.add_space(8.0);
 }
 
+fn enhance(ui: &mut Ui, c: &mut Clip) {
+    let on = is_enhanced(&c.audio);
+    let detail = if on {
+        "Applied: voice clean-up, rumble cut, levelling, a podcast tone and a peak limiter. Click to switch it off."
+    } else {
+        "One click for a talking voice: removes background noise, evens out the level and keeps peaks safe."
+    };
+    if kit::wide_button(ui, ph::MAGIC_WAND, "Enhance Speech", detail, true).clicked() {
+        if on {
+            clear_enhance(&mut c.audio);
+        } else {
+            enhance_speech(&mut c.audio);
+        }
+    }
+    ui.add_space(8.0);
+}
+
+fn voice_cleanup(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
+    let mut on = c.audio.voice_clean > 0.0;
+    let stream = c
+        .audio
+        .stream
+        .min(p.media.map_or(0, |m| m.audio_streams.saturating_sub(1)));
+    let media = p.media;
+    let a = &mut c.audio;
+    let out = Sec::new("audio-voice-clean", "Voice Clean-up")
+        .switch(&mut on)
+        .show(ui, |ui| {
+            kit::slider_row(ui, "Amount", &mut a.voice_clean, 0.0..=100.0, 0, "", 70.0);
+            kit::row_hint(
+                ui,
+                &format!(
+                    "Keeps the voice, turns down fans, hiss and room noise ({}).",
+                    voice_clean::engine_name()
+                ),
+            );
+            // Asking also starts the work, so the cleaned sound is ready by the
+            // time the clip plays.
+            if let Some(m) = media {
+                match voice_clean::request(
+                    &m.path,
+                    m.duration.as_secs_f64(),
+                    stream,
+                    a.voice_clean,
+                    false,
+                ) {
+                    Status::Ready(_) => kit::row_hint(ui, "Ready."),
+                    Status::Working(f) => {
+                        kit::row_hint(ui, &format!("Preparing the voice ({:.0}%)...", f * 100.0));
+                        ui.ctx()
+                            .request_repaint_after(std::time::Duration::from_millis(250));
+                    }
+                    Status::Failed => kit::row_hint(ui, "Could not clean this sound."),
+                }
+            }
+        });
+    if out.switched {
+        c.audio.voice_clean = if on { 70.0 } else { 0.0 };
+    }
+}
+
 fn volume(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
     let local = p.local;
     // Mute stays as it is: a detached clip's sound is muted on purpose.
-    let can_reset = c.volume != Animatable::constant(100.0) || c.audio.normalize;
+    let can_reset = c.volume != Animatable::constant(100.0)
+        || c.audio.normalize
+        || c.audio.leveler > 0.0
+        || c.audio.limiter;
     let out = Sec::new("volume", "Volume")
         .reset(can_reset)
         .show(ui, |ui| {
@@ -82,10 +152,24 @@ fn volume(p: &mut Panel, ui: &mut Ui, c: &mut Clip) {
                 "Normalize evens out the loudness to a standard level (-14 LUFS), so \
                  quiet and loud clips match.",
             );
+            kit::slider_row(
+                ui,
+                "Even Out Levels",
+                &mut c.audio.leveler,
+                0.0..=100.0,
+                0,
+                "",
+                45.0,
+            );
+            kit::row_hint(ui, "Lifts quiet speech and holds loud parts.");
+            kit::toggle_row(ui, "Peak Limiter", &mut c.audio.limiter);
+            kit::row_hint(ui, "Stops loud peaks from distorting.");
         });
     if out.reset {
         c.volume = Animatable::constant(100.0);
         c.audio.normalize = false;
+        c.audio.leveler = 0.0;
+        c.audio.limiter = false;
     }
 }
 
@@ -134,23 +218,20 @@ fn balance(ui: &mut Ui, c: &mut Clip) {
 
 fn denoise(ui: &mut Ui, a: &mut AudioSettings) {
     let mut on = a.denoise > 0.0 || a.wind_removal || a.hum_removal != 0 || a.de_ess;
-    let out = Sec::new("audio-denoise", "Denoise")
+    let out = Sec::new("audio-denoise", "Hiss, Wind & Hum")
         .switch(&mut on)
         .closed()
         .show(ui, |ui| {
             kit::slider_row(
                 ui,
-                "Noise Removal",
+                "Hiss Reduction",
                 &mut a.denoise,
                 0.0..=100.0,
                 0,
                 "",
                 50.0,
             );
-            kit::row_hint(
-                ui,
-                "Reduces steady background noise such as hiss, fans and traffic.",
-            );
+            kit::row_hint(ui, "For steady hiss. For voices, use Voice Clean-up.");
             kit::toggle_row(ui, "Wind Removal", &mut a.wind_removal);
             let sel = match a.hum_removal {
                 50 => 1,

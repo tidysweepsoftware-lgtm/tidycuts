@@ -43,6 +43,12 @@ jobs:
           Copy-Item "$($src.FullName)/LICENSE.txt" dist/TidyCuts/ffmpeg/FFMPEG-LICENSE.txt
           Copy-Item README.md dist/TidyCuts/
           Copy-Item packaging/icons/tidycuts.ico dist/TidyCuts/TidyCuts.ico
+      # Studio Voice: the voice model and ONNX Runtime (see packaging/voice-assets.txt).
+      - name: Add the Studio Voice files
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/fetch-voice-assets.ps1 -Dest dist/TidyCuts
       - name: Build the installer
         shell: pwsh
         run: |
@@ -65,7 +71,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: TidyCuts-store-package
-          path: dist-store/TidyCuts-*-store.msix      - uses: actions/upload-artifact@v4
+          path: dist-store/TidyCuts-*-store.msix
+      - uses: actions/upload-artifact@v4
         with:
           name: TidyCuts-windows-files
           path: |
@@ -117,6 +124,12 @@ jobs:
           path: ffmpeg-macos
       - run: chmod +x ffmpeg-macos/* || true
       - run: cargo build --release -p tidycuts-app
+      # Studio Voice: the voice model and ONNX Runtime, kept in ./voice-assets until
+      # make-macos-app.sh moves them into the app (see packaging/voice-assets.txt).
+      - name: Fetch the Studio Voice files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/fetch-voice-assets.sh voice-assets
       - name: Make the app and the disk image
         run: |
           version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')

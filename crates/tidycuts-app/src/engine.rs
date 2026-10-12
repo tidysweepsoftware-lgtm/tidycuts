@@ -68,6 +68,7 @@ impl Engine {
         let cores = std::thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4);
+        tidycuts_engine::voice_clean::set_cache_dir(cache_dir.clone());
         let scrub = ScrubCache::new(cache_dir, (cores / 3).clamp(1, 4), repaint.clone());
         let frames = FrameServer::new(
             scrub.clone(),

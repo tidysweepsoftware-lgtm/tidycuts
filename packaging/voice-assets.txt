@@ -1,0 +1,12 @@
+# The two things Studio Voice needs next to the program. They are not stored in git
+# (the model is 217 MB); scripts/fetch-voice-assets.* download and check them.
+#
+# The model is MossFormer2_SE_48K from ClearerVoice-Studio (Apache-2.0), exported to
+# ONNX by tools/voice-model/export_mossformer2.py and attached to the GitHub release
+# named MODEL_TAG. ONNX Runtime (MIT) comes from Microsoft's own releases.
+MODEL_TAG=voice-model-1
+MODEL_FILE=mossformer2_se_48k.onnx
+MODEL_SHA256=a340acc34baaaa7f985eb664d1435e1c4b5eb320997c747a902349e396da36af
+ORT_VERSION=1.28.3
+ORT_WIN_SHA256=1d6fab48e85f948436af7c8c971d2c145cf224e2c444755dec894f8b0de11a83
+ORT_MAC_SHA256=c436bd9f47dbce6f6311ccc21de97f829b3c862c09d24aa321958cb72f0a1d32

@@ -30,8 +30,11 @@ and then its categories.
 **Clip properties.**
 - Video: transform, crop, opacity, blend modes, masks, drop shadow, auto enhance,
   stabilisation, lens correction, denoise, upscaling and sharpening.
-- Audio: volume, fades, pan, pitch, voice changer, equaliser, normalising, noise
-  and hum removal, ducking.
+- Audio: **Enhance Speech** (one click for a talking voice), **Voice Clean-up**
+  (Studio Voice, a neural network that keeps the voice and turns down fans, hiss,
+  traffic and room noise; it runs on your computer), Even Out Levels (lifts quiet speech and
+  holds loud parts), a peak limiter, volume, fades, pan, pitch, voice changer,
+  equaliser, normalising, hiss, wind and hum removal, de-esser, ducking.
 - Color: exposure, contrast, temperature and tint, highlights and shadows,
   saturation, HSL for eight colour ranges, curves, and LUTs (built-in looks or
   your own `.cube` files, kept inside the project).

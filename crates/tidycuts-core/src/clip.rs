@@ -513,8 +513,16 @@ pub struct AudioSettings {
     pub keep_pitch: bool,
     /// Evens out the loudness to a standard level (-14 LUFS).
     pub normalize: bool,
-    /// Background-noise reduction strength, 0 = off ..= 100.
+    /// Steady-noise reduction (hiss, fans, hum-like rooms), 0 = off ..= 100.
     pub denoise: f64,
+    /// Voice clean-up: a trained model separates the voice from everything
+    /// else. 0 = off ..= 100 (how much of the cleaned sound is used).
+    pub voice_clean: f64,
+    /// Evens out loud and quiet parts so a voice stays at one level,
+    /// 0 = off ..= 100 (how much quiet sound may be lifted).
+    pub leveler: f64,
+    /// Keeps peaks under -1 dB so a boosted clip cannot distort.
+    pub limiter: bool,
     /// Cuts low rumble such as wind and handling noise.
     pub wind_removal: bool,
     /// Removes mains hum at 50 or 60 Hz and its harmonics; 0 = off.
@@ -545,6 +553,9 @@ impl Default for AudioSettings {
             keep_pitch: true,
             normalize: false,
             denoise: 0.0,
+            voice_clean: 0.0,
+            leveler: 0.0,
+            limiter: false,
             wind_removal: false,
             hum_removal: 0,
             de_ess: false,
@@ -568,6 +579,9 @@ impl AudioSettings {
             || self.pitch != 0.0
             || self.normalize
             || self.denoise > 0.0
+            || self.voice_clean > 0.0
+            || self.leveler > 0.0
+            || self.limiter
             || self.wind_removal
             || self.hum_removal != 0
             || self.de_ess

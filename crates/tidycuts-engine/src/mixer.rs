@@ -5,7 +5,8 @@
 use crate::audio_fx::clip_filters;
 use crate::decode::{AudioParams, AudioStream};
 use crate::stretch::Stretcher;
-use std::collections::HashMap;
+use crate::voice_clean;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -33,6 +34,8 @@ struct Voice {
     used: bool,
     /// Smoothed ducking gain.
     duck: f32,
+    /// The voice-cleaned copy of the sound this stream reads, when there is one.
+    cleaned: Option<PathBuf>,
 }
 
 /// A clip that makes sound, with the gains that apply to it.
@@ -82,6 +85,8 @@ pub struct Mixer {
     scratch: Vec<f32>,
     /// Where to report levels, when something is watching.
     pub meters: Option<Arc<Meters>>,
+    /// Files whose loudness is being measured in the background.
+    measuring: HashSet<(PathBuf, u32)>,
 }
 
 /// Every clip that sounds at some point in `[from, to)`.
@@ -152,7 +157,57 @@ impl Mixer {
             wait,
             scratch: Vec::new(),
             meters: None,
+            measuring: HashSet::new(),
         }
+    }
+
+    /// Whether this mixer is rendering a file (it may wait for slow work)
+    /// rather than playing live.
+    fn exporting(&self) -> bool {
+        self.wait >= Duration::from_secs(10)
+    }
+
+    /// The voice-cleaned copy of a clip's sound, when clean-up is on and the
+    /// copy is ready. While it is being made the original plays; when it is
+    /// done the stream is reopened on it. Exports wait for it.
+    fn cleaned_source(&self, clip: &Clip, media: &MediaItem) -> Option<PathBuf> {
+        if clip.audio.voice_clean <= 0.0 {
+            return None;
+        }
+        let stream = clip.audio.stream.min(media.audio_streams.saturating_sub(1));
+        match voice_clean::request(
+            &media.path,
+            media.duration.as_secs_f64(),
+            stream,
+            clip.audio.voice_clean,
+            self.exporting(),
+        ) {
+            voice_clean::Status::Ready(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    /// The gain that brings a file to the standard loudness. A render
+    /// measures it on the spot; live playback starts the measurement in the
+    /// background and plays at the file's own level until it is done.
+    fn normalize_gain(&mut self, path: &std::path::Path, stream: u32) -> f32 {
+        let key = (path.to_path_buf(), stream);
+        if let Some(g) = self.loudness.lock().unwrap().get(&key) {
+            return *g;
+        }
+        if self.exporting() {
+            let g = measure_loudness(path, stream).unwrap_or(1.0);
+            self.loudness.lock().unwrap().insert(key, g);
+            return g;
+        }
+        if self.measuring.insert(key.clone()) {
+            let table = self.loudness.clone();
+            std::thread::spawn(move || {
+                let g = measure_loudness(&key.0, key.1).unwrap_or(1.0);
+                table.lock().unwrap().insert(key, g);
+            });
+        }
+        1.0
     }
 
     /// Forgets every decoder (after a seek).
@@ -163,9 +218,15 @@ impl Mixer {
     fn open(&self, clip: &Clip, media: &MediaItem, at: Time) -> Voice {
         let filters = clip_filters(clip, self.sample_rate);
         let src = clip.source_time(at).as_secs_f64();
+        let cleaned = self.cleaned_source(clip, media);
         let params = AudioParams {
-            path: media.path.clone(),
-            stream: clip.audio.stream.min(media.audio_streams.saturating_sub(1)),
+            path: cleaned.clone().unwrap_or_else(|| media.path.clone()),
+            // The cleaned copy holds just the one stream.
+            stream: if cleaned.is_some() {
+                0
+            } else {
+                clip.audio.stream.min(media.audio_streams.saturating_sub(1))
+            },
             sample_rate: self.sample_rate,
             filters: filters.clone(),
         };
@@ -198,6 +259,7 @@ impl Mixer {
             start: clip.start,
             used: true,
             duck: 1.0,
+            cleaned,
         }
     }
 
@@ -232,8 +294,10 @@ impl Mixer {
         for s in &clips {
             let c = s.clip;
             let filters = clip_filters(c, self.sample_rate);
+            let cleaned = self.cleaned_source(c, s.media);
             let stale = self.voices.get(&c.id).is_none_or(|v| {
                 v.filters != filters
+                    || v.cleaned != cleaned
                     || v.ramp != c.ramp
                     || v.keep_pitch != c.audio.keep_pitch
                     || v.source_in != c.source_in
@@ -245,6 +309,11 @@ impl Mixer {
                 let voice = self.open(c, s.media, at.max(c.start));
                 self.voices.insert(c.id, voice);
             }
+            let norm = if c.audio.normalize {
+                self.normalize_gain(&s.media.path, c.audio.stream)
+            } else {
+                1.0
+            };
             let wait = self.wait;
             let voice = self.voices.get_mut(&c.id).unwrap();
             voice.used = true;
@@ -269,16 +338,6 @@ impl Mixer {
             self.scratch[got * 2..].iter_mut().for_each(|x| *x = 0.0);
             voice.next = at + Time::from_secs_f64(last as f64 / sr);
 
-            let norm = if c.audio.normalize {
-                self.loudness
-                    .lock()
-                    .unwrap()
-                    .get(&(s.media.path.clone(), c.audio.stream))
-                    .copied()
-                    .unwrap_or(1.0)
-            } else {
-                1.0
-            };
             let pan = (c.audio.pan / 100.0).clamp(-1.0, 1.0) as f32;
             let (pl, pr) = ((1.0 - pan).min(1.0), (1.0 + pan).min(1.0));
             let ducked = duckers

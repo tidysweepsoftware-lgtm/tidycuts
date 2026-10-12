@@ -1,7 +1,8 @@
-//! A clip's audio settings as an ffmpeg filter chain: speed, pitch, noise
-//! removal, hum and wind removal, de-essing, equalizer and voice effects.
-//! Volume, fades, panning, ducking and loudness evening happen in the mixer
-//! because they follow the timeline.
+//! A clip's audio settings as an ffmpeg filter chain: speed, pitch, hiss
+//! reduction, hum and wind removal, de-essing, equalizer, leveler, limiter
+//! and voice effects. Voice clean-up is not here: it makes a cleaned copy of
+//! the sound first (see `voice_clean`). Volume, fades, panning, ducking and
+//! loudness evening happen in the mixer because they follow the timeline.
 
 use tidycuts_core::{AudioSettings, Clip};
 
@@ -77,6 +78,40 @@ pub static EQ_PRESETS: &[(&str, [f64; 10])] = &[
     ),
 ];
 
+/// What "Enhance Speech" switches on for a talking voice: voice clean-up, a
+/// rumble cut, levelling, a podcast tone and a peak limiter.
+pub fn enhance_speech(a: &mut AudioSettings) {
+    // Studio Voice keeps the voice natural even at full strength; the small
+    // built-in cleaner is gentler.
+    a.voice_clean = if crate::studio_voice::available() {
+        90.0
+    } else {
+        70.0
+    };
+    a.wind_removal = true;
+    a.leveler = 45.0;
+    a.limiter = true;
+    if let Some((n, g)) = EQ_PRESETS.iter().find(|(n, _)| *n == "Podcast") {
+        a.eq = *g;
+        a.eq_preset = n.to_string();
+    }
+}
+
+/// Whether all of Enhance Speech is on.
+pub fn is_enhanced(a: &AudioSettings) -> bool {
+    a.voice_clean > 0.0 && a.wind_removal && a.leveler > 0.0 && a.limiter
+}
+
+/// Switches Enhance Speech's parts off again.
+pub fn clear_enhance(a: &mut AudioSettings) {
+    a.voice_clean = 0.0;
+    a.wind_removal = false;
+    a.leveler = 0.0;
+    a.limiter = false;
+    a.eq = [0.0; 10];
+    a.eq_preset.clear();
+}
+
 fn tempo_chain(mut factor: f64, out: &mut Vec<String>) {
     // atempo takes 0.5..=100 per instance; chain for slower speeds.
     while factor < 0.5 {
@@ -144,8 +179,11 @@ pub fn clip_filters(clip: &Clip, sr: u32) -> Vec<String> {
         }
     }
     if a.denoise > 0.0 {
-        let nr = 6.0 + a.denoise.clamp(0.0, 100.0) * 0.3;
-        f.push(format!("afftdn=nr={nr:.1}:nf=-50:tn=1"));
+        // For steady hiss. The floor is fixed because the filter's own
+        // tracking of it does almost nothing on speech (measured); voices in
+        // noisy rooms are what Voice Clean-up is for.
+        let nr = 6.0 + a.denoise.clamp(0.0, 100.0) * 0.18;
+        f.push(format!("afftdn=nr={nr:.1}:nf=-35"));
     }
     if a.de_ess {
         f.push("deesser=i=0.6".into());
@@ -157,6 +195,12 @@ pub fn clip_filters(clip: &Clip, sr: u32) -> Vec<String> {
                 g.clamp(-12.0, 12.0)
             ));
         }
+    }
+    if a.leveler > 0.0 {
+        // Lifts quiet speech and holds loud parts, a window at a time. The
+        // most it may lift grows from +6 dB to +30 dB with the amount.
+        let gain = 2.0 + a.leveler.clamp(0.0, 100.0) * 0.28;
+        f.push(format!("dynaudnorm=f=250:g=21:p=0.9:m={gain:.1}:r=0"));
     }
     if a.pitch.abs() > 0.01 {
         pitch_chain(2f64.powf(a.pitch.clamp(-12.0, 12.0) / 12.0), sr, &mut f);
@@ -176,6 +220,11 @@ pub fn clip_filters(clip: &Clip, sr: u32) -> Vec<String> {
             f.push(format!("asetrate={:.3}", sr as f64 * speed));
             f.push(format!("aresample={sr}"));
         }
+    }
+    if a.limiter {
+        // Last, so nothing above can push a peak past -1 dB. `level=0` keeps
+        // the limiter from scaling the whole sound back up afterwards.
+        f.push("alimiter=limit=0.89:attack=5:release=80:level=0".into());
     }
     f
 }
@@ -217,6 +266,49 @@ mod tests {
         let f = clip_filters(&c, 48000).join(",");
         assert!(f.find("afftdn").unwrap() < f.find("equalizer").unwrap());
         assert!(f.find("equalizer").unwrap() < f.find("aecho").unwrap());
+    }
+
+    #[test]
+    fn leveler_and_limiter_bracket_the_chain() {
+        let mut c = clip();
+        c.audio.leveler = 50.0;
+        c.audio.limiter = true;
+        c.audio.eq[2] = 2.0;
+        c.speed = 2.0;
+        let f = clip_filters(&c, 48000).join(",");
+        assert!(f.find("equalizer").unwrap() < f.find("dynaudnorm").unwrap());
+        assert!(f.find("atempo").unwrap() < f.find("alimiter").unwrap());
+        assert!(f.ends_with("level=0"), "{f}");
+        // 50% lifts quiet sound by up to 16x (+24 dB).
+        assert!(f.contains("m=16.0"), "{f}");
+    }
+
+    #[test]
+    fn hiss_reduction_stays_in_a_safe_range() {
+        let mut c = clip();
+        c.audio.denoise = 100.0;
+        assert!(clip_filters(&c, 48000)[0].contains("nr=24.0"));
+        c.audio.denoise = 1.0;
+        assert!(clip_filters(&c, 48000)[0].contains("nr=6.2"));
+    }
+
+    #[test]
+    fn voice_clean_up_does_not_add_a_filter() {
+        // It works on a cleaned copy of the sound, not in the chain.
+        let mut c = clip();
+        c.audio.voice_clean = 80.0;
+        assert!(clip_filters(&c, 48000).is_empty());
+    }
+
+    #[test]
+    fn enhance_speech_switches_on_and_off() {
+        let mut a = AudioSettings::default();
+        assert!(!is_enhanced(&a));
+        enhance_speech(&mut a);
+        assert!(is_enhanced(&a));
+        assert_eq!(a.eq_preset, "Podcast");
+        clear_enhance(&mut a);
+        assert_eq!(a, AudioSettings::default());
     }
 
     #[test]

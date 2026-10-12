@@ -240,6 +240,17 @@ pub fn tool_list() -> Vec<Tool> {
             false,
         ),
         tool(
+            "enhance_speech",
+            "One call for a talking voice that sounds bad: removes background noise (a trained model keeps the voice and turns down everything else), cuts rumble, lifts quiet speech and holds loud parts, adds a podcast tone and a peak limiter. Takes a few seconds the first time because the cleaned sound is prepared. Use update_clip's audio.voice_clean, audio.leveler and audio.limiter to tune the parts.",
+            json!({
+                "clip": id("the clip with the voice"),
+                "noise_removal": {"type": "number", "description": "Voice clean-up amount, 0 to 100 (default 70)."},
+                "level": {"type": "number", "description": "How much quiet speech may be lifted, 0 to 100 (default 45)."},
+            }),
+            &["clip"],
+            false,
+        ),
+        tool(
             "sync_by_audio",
             "Lines clips up by their sound (several cameras, or a camera and a recorder, that \
              heard the same thing). The earliest clip stays; the others move. Clips need sound \
@@ -426,6 +437,7 @@ fn dispatch(app: &mut TidyCutsApp, tool: &str, a: &Args) -> Out {
         "set_transition" => set_transition(app, a),
         "set_speed" => set_speed(app, a),
         "detach_audio" => detach_audio(app, a),
+        "enhance_speech" => enhance_speech(app, a),
         "freeze_frame" => freeze_frame(app, a),
         "add_marker" => add_marker(app, a),
         "set_mix" => set_mix(app, a),
@@ -1210,6 +1222,32 @@ fn detach_audio(app: &mut TidyCutsApp, a: &Args) -> Out {
     app.selection = vec![id];
     app.detach_audio();
     Ok(ToolResult::json(&created_since(app, &before)))
+}
+
+fn enhance_speech(app: &mut TidyCutsApp, a: &Args) -> Out {
+    let id = clip_id(app, a.need_str("clip")?)?;
+    let clean = a.num("noise_removal")?.map(|v| v.clamp(0.0, 100.0));
+    let level = a.num("level")?.map(|v| v.clamp(0.0, 100.0));
+    let (track, _) = app.project.clip(id).ok_or("That clip is gone.")?;
+    if track.locked {
+        return Err("That clip's track is locked.".into());
+    }
+    app.edit(|p| match p.clip_mut(id) {
+        Some(c) => {
+            tidycuts_engine::audio_fx::enhance_speech(&mut c.audio);
+            if let Some(v) = clean {
+                c.audio.voice_clean = v;
+            }
+            if let Some(v) = level {
+                c.audio.leveler = v;
+            }
+            true
+        }
+        None => false,
+    });
+    Ok(done(
+        "Enhance Speech is on. The cleaned voice is prepared in the background (a few seconds per minute of sound); the original plays until it is ready, and an export waits for it.",
+    ))
 }
 
 fn freeze_frame(app: &mut TidyCutsApp, a: &Args) -> Out {

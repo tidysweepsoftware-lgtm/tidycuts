@@ -246,6 +246,7 @@ impl TidyCutsApp {
     pub fn delete_previews(&mut self) {
         self.cancel_previews();
         previews::delete_all(&self.previews_dir());
+        tidycuts_engine::voice_clean::clear_cache();
         for p in &mut self.previews.pieces {
             p.ready = false;
         }

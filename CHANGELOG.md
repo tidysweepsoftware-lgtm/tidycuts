@@ -2,6 +2,29 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## Unreleased (better sound tools)
+
+**Audio**
+- **Enhance Speech**: one button on the Audio tab for a talking voice. It switches
+  on Voice Clean-up, a rumble cut, level evening, a podcast tone and a peak limiter.
+- **Voice Clean-up** with **Studio Voice**: a speech-enhancement network (MossFormer2,
+  Apache-2.0, run through ONNX Runtime, both included) separates the voice from
+  everything else, entirely on your computer. On our test recordings (speech with hiss,
+  room noise, a fan with hum, street noise, camera noise and talking in the background)
+  the old noise remover took away 0.6 dB of noise; the small RNNoise engine used before
+  took away 26 dB; Studio Voice takes away about 37 dB at full strength, and the voice
+  scores 3.4 of 5 on Microsoft's DNSMOS quality model (3.5 for the clean original).
+  A 4-minute clip takes about 20 seconds. Without the extra files the small RNNoise
+  engine is used. The cleaned sound is made ahead of time and kept in the cache; the
+  original plays until it is ready, and an export waits for it.
+- **Even Out Levels** and **Peak Limiter** (Volume section): lift a recording that
+  is too quiet by up to 30 dB without letting loud parts clip.
+- **Hiss Reduction** replaces the old Noise Removal slider, with a tuned filter
+  that only touches steady hiss.
+- Normalize now works in exports and in assistant edits (it was only measured
+  when the switch was clicked in the window).
+- The assistant link has an `enhance_speech` tool.
+
 ## 1.1.0 (the modern library)
 
 The libraries were rebuilt in a modern style. The old designs are still there
