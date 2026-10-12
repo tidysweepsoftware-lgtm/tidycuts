@@ -19,8 +19,10 @@ the owner asked for, how it is built and tested, and lessons learned.
   `#[serde(default)]`. Catalog ids (`basic.title`, `filter.vivid`...) are saved in projects:
   never rename one.
 - Everything built in (titles, effects, filters, stickers, templates, music, sounds) is
-  drawn or synthesised by the program itself. Do not add stock photos, footage, presets
-  or other third-party artwork.
+  drawn or synthesised by the program itself. Do not add footage, presets or other
+  third-party artwork. The one exception is the sample photographs for library previews:
+  CC0 (public domain) pictures only, each listed in THIRD-PARTY-NOTICES.md with its source
+  page, and no recognisable people (they could need a release).
 - Do not name other companies' products, or use their logos, in the app, the docs or the
   code. Say "widescreen", "vertical" and "square", not brand names.
 - User-facing words are plain English, sentence case, no jargon.

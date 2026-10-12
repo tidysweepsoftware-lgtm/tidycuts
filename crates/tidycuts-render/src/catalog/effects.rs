@@ -2,6 +2,7 @@
 
 use super::animations::Motion;
 use super::{ColorDef, ParamDef, Sample};
+use crate::motion::Spring;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EffectKind {
@@ -103,6 +104,56 @@ const fn pct(key: &'static str, label: &'static str, default: f32) -> ParamDef {
     ParamDef::percent(key, label, default)
 }
 
+/// The styles of the flicker shader (shader 92), in order.
+const FLICKER_STYLES: &[&str] = &[
+    "Negative",
+    "Colour flash",
+    "RGB stroke",
+    "Neon swing",
+    "Hallucination",
+    "Exposure jitter",
+    "Hue cycle",
+    "Strobe",
+    "Colour slice",
+    "Pulse flash",
+];
+
+/// The styles of the glass shader (shader 93).
+const GLASS_STYLES: &[&str] = &["Shatter", "Cracked", "Prism shards"];
+/// The styles of the grunge shader (shader 96).
+const GRUNGE_STYLES: &[&str] = &["Dust and scratches", "Grime", "Crumpled paper"];
+/// The styles of the neon frame shader (shader 97).
+const NEON_STYLES: &[&str] = &["Steady", "Chase", "Pulse", "Two colours"];
+/// The styles of the 3D layout shader (shader 99).
+const LAYOUT_STYLES: &[&str] = &["Fan of three", "Stairs", "Floating card"];
+/// The styles of the beat shader (shader 100), in order.
+const BEAT_STYLES: &[&str] = &[
+    "Zoom pump",
+    "Shake kick",
+    "Colour pop",
+    "Blur thump",
+    "Strobe",
+    "Hue kick",
+    "Squash and bounce",
+    "Vignette pulse",
+];
+/// The sound-reactive shader.
+pub const AUDIO_SHADER: u32 = 101;
+/// What a sound-reactive effect listens to, in order.
+const REACT_BANDS: &[&str] = &["Everything", "Bass", "Mid", "Treble"];
+/// The looks of the sound-reactive shader, in order.
+const REACT_STYLES: &[&str] = &[
+    "Zoom",
+    "Shake",
+    "Colour pop",
+    "Flash",
+    "Colour split",
+    "Blur",
+    "Glow",
+    "Vignette",
+    "Hue shift",
+    "Tear",
+];
 const AMOUNT: ParamDef = ParamDef::percent("amount", "Amount", 0.5);
 const SPEED: ParamDef = ParamDef::percent("speed", "Speed", 0.5);
 const CENTER_X: ParamDef = ParamDef::percent("center_x", "Center X", 0.5);
@@ -432,6 +483,20 @@ pub static EFFECTS: &[EffectDef] = &[
             pct("amount", "Amount", 0.7),
             pct("scale", "Scale", 0.4),
             pct("speed", "Speed", 0.4),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "trendy.shockwave",
+        "Shockwave",
+        "Trendy",
+        91,
+        &[
+            pct("strength", "Strength", 0.6),
+            pct("speed", "Speed", 0.5),
+            pct("x", "Centre X", 0.5),
+            pct("y", "Centre Y", 0.5),
         ],
         &[],
         Landscape,
@@ -1241,6 +1306,1251 @@ pub static EFFECTS: &[EffectDef] = &[
         &[],
         Nap,
     ),
+    // ---- More camera motion: shakes and zooms ----
+    moving("shake.sideways", "Sideways", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.up_down", "Up-Down", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.chaos", "Chaos", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.mini_wave", "Mini Wave", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.pendulum", "Pendulum", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.vibration", "Vibration", "Shake", &[AMOUNT, SPEED]),
+    moving(
+        "shake.rebound",
+        "Rotational Rebound",
+        "Shake",
+        &[AMOUNT, SPEED],
+    ),
+    moving("shake.crash_in", "Crash In", "Shake", &[AMOUNT, SPEED]),
+    moving("shake.wobble", "Slight Wobble", "Shake", &[AMOUNT, SPEED]),
+    moving(
+        "shake.focus_zoom",
+        "Focus Zoom Shake",
+        "Shake",
+        &[AMOUNT, SPEED],
+    ),
+    moving(
+        "shake.bounce_cam",
+        "Bounce Camera",
+        "Shake",
+        &[AMOUNT, SPEED],
+    ),
+    moving(
+        "shake.heart_shake",
+        "Heartbeat Shake",
+        "Shake",
+        &[AMOUNT, BPM],
+    ),
+    moving("shake.silky", "Silky Camera", "Shake", &[AMOUNT, SPEED]),
+    moving("zoom.expand", "Expand", "Zoom", &[AMOUNT, SPEED]),
+    moving(
+        "shake.flash_black",
+        "Flash Black",
+        "Shake",
+        &[AMOUNT, SPEED],
+    ),
+    moving("zoom.wobble", "Wobble Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.rotary", "Rotary Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.slider", "Slider Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.s_curve", "S-Curve Camera", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.throb", "Throb Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.mini", "Mini Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.exposure", "Exposure Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving("zoom.sequence", "Sequence Zoom", "Zoom", &[AMOUNT, SPEED]),
+    moving(
+        "zoom.freeze_focus",
+        "Freeze Focus Zoom",
+        "Zoom",
+        &[AMOUNT, SPEED],
+    ),
+    moving(
+        "zoom.flash_lens",
+        "Flash Lens Zoom",
+        "Zoom",
+        &[AMOUNT, SPEED],
+    ),
+    // ---- Flicker: colour flashes and strobes (one shader, ten styles) ----
+    shader(
+        "flicker.negative",
+        "Negative Flicker",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 0),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "flicker.colour_flash",
+        "Colour Flash",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 1),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "flicker.rgb_stroke",
+        "RGB Stroke",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 2),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "flicker.neon_swing",
+        "Neon Swing",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 3),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "flicker.hallucination",
+        "Hallucination",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 4),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "flicker.jitter",
+        "Flicker Jitter",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 5),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "flicker.hue_cycle",
+        "Hue Cycle",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 6),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "flicker.strobe",
+        "Black & White Strobe",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 7),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "flicker.colour_slice",
+        "Colour Slice",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 8),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "flicker.pulse_flash",
+        "Pulse Flash",
+        "Flicker",
+        92,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", FLICKER_STYLES, 9),
+            pct("variation", "Variation", 0.3),
+        ],
+        &[],
+        Sunset,
+    ),
+    // ---- Glass, sparkle, grunge, neon frames, celebration, 3D layouts ----
+    shader(
+        "glass.shatter",
+        "Shatter",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 0),
+            pct("size", "Size", 0.45),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "glass.shatter_fine",
+        "Shatter Fine",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 0),
+            pct("size", "Size", 0.8),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "glass.shatter_big",
+        "Shatter Big",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.8),
+            pct("speed", "Speed", 0.45),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 0),
+            pct("size", "Size", 0.1),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "glass.cracked",
+        "Cracked Glass",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 1),
+            pct("size", "Size", 0.45),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "glass.cracked_heavy",
+        "Cracked Heavy",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 1.0),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 1),
+            pct("size", "Size", 0.75),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "glass.prism",
+        "Prism Shards",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 2),
+            pct("size", "Size", 0.45),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "glass.prism_fine",
+        "Prism Fine",
+        "Glass",
+        93,
+        &[
+            pct("amount", "Amount", 0.8),
+            pct("speed", "Speed", 0.4),
+            ParamDef::choice("style", "Style", GLASS_STYLES, 2),
+            pct("size", "Size", 0.8),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "sparkle.glitter_gold",
+        "Gold Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.5),
+            pct("spread", "Spread", 0.5),
+        ],
+        &[color("color", "Tint", 1.0, 0.82, 0.4)],
+        Portrait,
+    ),
+    shader(
+        "sparkle.glitter_silver",
+        "Silver Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.5),
+            pct("spread", "Spread", 0.5),
+        ],
+        &[color("color", "Tint", 0.9, 0.95, 1.0)],
+        Portrait,
+    ),
+    shader(
+        "sparkle.glitter_rose",
+        "Rose Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.5),
+            pct("spread", "Spread", 0.5),
+        ],
+        &[color("color", "Tint", 1.0, 0.62, 0.78)],
+        Pet,
+    ),
+    shader(
+        "sparkle.glitter_blue",
+        "Ice Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.5),
+            pct("spread", "Spread", 0.5),
+        ],
+        &[color("color", "Tint", 0.55, 0.8, 1.0)],
+        Landscape,
+    ),
+    shader(
+        "sparkle.glitter_fine",
+        "Fine Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.9),
+            pct("speed", "Speed", 0.6),
+            pct("size", "Size", 0.1),
+            pct("spread", "Spread", 0.4),
+        ],
+        &[color("color", "Tint", 1.0, 0.9, 0.7)],
+        Sunset,
+    ),
+    shader(
+        "sparkle.glitter_chunky",
+        "Chunky Glitter",
+        "Sparkle",
+        94,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.4),
+            pct("size", "Size", 0.85),
+            pct("spread", "Spread", 0.5),
+        ],
+        &[color("color", "Tint", 1.0, 1.0, 1.0)],
+        Portrait,
+    ),
+    shader(
+        "sparkle.starburst_white",
+        "Starburst",
+        "Sparkle",
+        95,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.5),
+            pct("points", "Points", 0.3),
+        ],
+        &[color("color", "Tint", 1.0, 1.0, 1.0)],
+        Portrait,
+    ),
+    shader(
+        "sparkle.starburst_warm",
+        "Warm Starburst",
+        "Sparkle",
+        95,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.55),
+            pct("points", "Points", 0.55),
+        ],
+        &[color("color", "Tint", 1.0, 0.8, 0.5)],
+        Sunset,
+    ),
+    shader(
+        "sparkle.starburst_cool",
+        "Cool Starburst",
+        "Sparkle",
+        95,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.55),
+            pct("points", "Points", 0.8),
+        ],
+        &[color("color", "Tint", 0.6, 0.8, 1.0)],
+        Landscape,
+    ),
+    shader(
+        "sparkle.starburst_gentle",
+        "Gentle Starburst",
+        "Sparkle",
+        95,
+        &[
+            pct("amount", "Amount", 0.3),
+            pct("speed", "Speed", 0.35),
+            pct("size", "Size", 0.4),
+            pct("points", "Points", 0.3),
+        ],
+        &[color("color", "Tint", 1.0, 0.97, 0.9)],
+        Pet,
+    ),
+    shader(
+        "grunge.dust_scratches",
+        "Dust & Scratches",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 0),
+            pct("size", "Size", 0.5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "grunge.fine_dust",
+        "Fine Dust",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 0),
+            pct("size", "Size", 0.1),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "grunge.heavy_dust",
+        "Heavy Dust",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 1.0),
+            pct("speed", "Speed", 0.6),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 0),
+            pct("size", "Size", 0.8),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "grunge.grime",
+        "Grime",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.3),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 1),
+            pct("size", "Size", 0.5),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "grunge.grime_heavy",
+        "Heavy Grime",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 1.0),
+            pct("speed", "Speed", 0.3),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 1),
+            pct("size", "Size", 0.6),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "grunge.paper",
+        "Crumpled Paper",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 0.6),
+            pct("speed", "Speed", 0.3),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 2),
+            pct("size", "Size", 0.5),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "grunge.paper_soft",
+        "Soft Paper",
+        "Grunge",
+        96,
+        &[
+            pct("amount", "Amount", 0.35),
+            pct("speed", "Speed", 0.3),
+            ParamDef::choice("style", "Style", GRUNGE_STYLES, 2),
+            pct("size", "Size", 0.3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "frame.neon_steady",
+        "Neon Frame",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.5),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", NEON_STYLES, 0),
+            pct("inset", "Inset", 0.3),
+        ],
+        &[
+            color("color", "Colour 1", 0.1, 0.9, 1.0),
+            color("color2", "Colour 2", 0.1, 0.9, 1.0),
+        ],
+        Landscape,
+    ),
+    shader(
+        "frame.neon_chase",
+        "Neon Chase",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.5),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", NEON_STYLES, 1),
+            pct("inset", "Inset", 0.3),
+        ],
+        &[
+            color("color", "Colour 1", 1.0, 0.2, 0.7),
+            color("color2", "Colour 2", 0.2, 0.8, 1.0),
+        ],
+        Portrait,
+    ),
+    shader(
+        "frame.neon_pulse",
+        "Neon Pulse",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.6),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", NEON_STYLES, 2),
+            pct("inset", "Inset", 0.3),
+        ],
+        &[
+            color("color", "Colour 1", 1.0, 0.3, 0.4),
+            color("color2", "Colour 2", 1.0, 0.3, 0.4),
+        ],
+        Sunset,
+    ),
+    shader(
+        "frame.neon_duo",
+        "Neon Duo",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.5),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", NEON_STYLES, 3),
+            pct("inset", "Inset", 0.3),
+        ],
+        &[
+            color("color", "Colour 1", 0.4, 0.3, 1.0),
+            color("color2", "Colour 2", 0.1, 1.0, 0.7),
+        ],
+        Pet,
+    ),
+    shader(
+        "frame.neon_amber",
+        "Amber Neon",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.6),
+            pct("speed", "Speed", 0.5),
+            ParamDef::choice("style", "Style", NEON_STYLES, 0),
+            pct("inset", "Inset", 0.45),
+        ],
+        &[
+            color("color", "Colour 1", 1.0, 0.7, 0.2),
+            color("color2", "Colour 2", 1.0, 0.7, 0.2),
+        ],
+        Landscape,
+    ),
+    shader(
+        "frame.neon_thin_chase",
+        "Thin Neon Chase",
+        "Frame",
+        97,
+        &[
+            pct("glow", "Glow", 0.3),
+            pct("speed", "Speed", 0.7),
+            ParamDef::choice("style", "Style", NEON_STYLES, 1),
+            pct("inset", "Inset", 0.1),
+        ],
+        &[
+            color("color", "Colour 1", 0.7, 1.0, 0.5),
+            color("color2", "Colour 2", 0.2, 0.6, 1.0),
+        ],
+        Portrait,
+    ),
+    shader(
+        "celebration.fireworks",
+        "Fireworks",
+        "Celebration",
+        98,
+        &[
+            pct("amount", "Amount", 0.8),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.55),
+            pct("trails", "Trails", 0.5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "celebration.fireworks_bold",
+        "Bold Fireworks",
+        "Celebration",
+        98,
+        &[
+            pct("amount", "Amount", 1.0),
+            pct("speed", "Speed", 0.5),
+            pct("size", "Size", 0.85),
+            pct("trails", "Trails", 0.7),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "celebration.fireworks_tiny",
+        "Tiny Fireworks",
+        "Celebration",
+        98,
+        &[
+            pct("amount", "Amount", 0.9),
+            pct("speed", "Speed", 0.6),
+            pct("size", "Size", 0.25),
+            pct("trails", "Trails", 0.4),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "celebration.fireworks_slow",
+        "Slow Fireworks",
+        "Celebration",
+        98,
+        &[
+            pct("amount", "Amount", 0.8),
+            pct("speed", "Speed", 0.15),
+            pct("size", "Size", 0.6),
+            pct("trails", "Trails", 0.6),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "celebration.fireworks_rapid",
+        "Rapid Fireworks",
+        "Celebration",
+        98,
+        &[
+            pct("amount", "Amount", 0.7),
+            pct("speed", "Speed", 0.9),
+            pct("size", "Size", 0.5),
+            pct("trails", "Trails", 0.4),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "layout.fan",
+        "Triple Fan",
+        "Layout 3D",
+        99,
+        &[
+            pct("tilt", "Tilt", 0.5),
+            pct("sway", "Sway", 0.4),
+            ParamDef::choice("style", "Style", LAYOUT_STYLES, 0),
+            pct("gap", "Gap", 0.5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "layout.fan_wide",
+        "Wide Fan",
+        "Layout 3D",
+        99,
+        &[
+            pct("tilt", "Tilt", 0.85),
+            pct("sway", "Sway", 0.4),
+            ParamDef::choice("style", "Style", LAYOUT_STYLES, 0),
+            pct("gap", "Gap", 0.9),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "layout.stairs",
+        "Stairs",
+        "Layout 3D",
+        99,
+        &[
+            pct("tilt", "Tilt", 0.5),
+            pct("sway", "Sway", 0.4),
+            ParamDef::choice("style", "Style", LAYOUT_STYLES, 1),
+            pct("gap", "Gap", 0.5),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "layout.card",
+        "Floating Card",
+        "Layout 3D",
+        99,
+        &[
+            pct("tilt", "Tilt", 0.5),
+            pct("sway", "Sway", 0.4),
+            ParamDef::choice("style", "Style", LAYOUT_STYLES, 2),
+            pct("gap", "Gap", 0.5),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "layout.card_tilted",
+        "Tilted Card",
+        "Layout 3D",
+        99,
+        &[
+            pct("tilt", "Tilt", 0.95),
+            pct("sway", "Sway", 0.5),
+            ParamDef::choice("style", "Style", LAYOUT_STYLES, 2),
+            pct("gap", "Gap", 0.5),
+        ],
+        &[],
+        Landscape,
+    ),
+    // ---- Beat: the picture follows the tempo ----
+    shader(
+        "beat.zoom_pump",
+        "Zoom Pump",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 0),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "beat.zoom_pump_fast",
+        "Zoom Pump Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 0),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "beat.shake_kick",
+        "Shake Kick",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 1),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "beat.shake_kick_fast",
+        "Shake Kick Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 1),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "beat.colour_pop",
+        "Colour Pop",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 2),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "beat.colour_pop_fast",
+        "Colour Pop Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 2),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "beat.blur_thump",
+        "Blur Thump",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 3),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "beat.blur_thump_fast",
+        "Blur Thump Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 3),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "beat.strobe",
+        "Beat Strobe",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 4),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "beat.strobe_fast",
+        "Beat Strobe Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 4),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "beat.hue_kick",
+        "Hue Kick",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "beat.hue_kick_fast",
+        "Hue Kick Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "beat.squash_bounce",
+        "Squash Bounce",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 6),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "beat.squash_bounce_fast",
+        "Squash Bounce Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 6),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "beat.vignette_pulse",
+        "Vignette Pulse",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 96.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 7),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "beat.vignette_pulse_fast",
+        "Vignette Pulse Fast",
+        "Beat",
+        100,
+        &[
+            ParamDef::value("bpm", "Beats per Minute", 40.0, 200.0, 128.0, " bpm"),
+            pct("amount", "Amount", 0.7),
+            pct("decay", "Decay", 0.5),
+            ParamDef::choice("style", "Style", BEAT_STYLES, 7),
+        ],
+        &[],
+        Sunset,
+    ),
+    // ---- Sound reactive: the picture moves with the clip's own sound ----
+    shader(
+        "react.zoom_bass",
+        "Bass Zoom",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 1),
+            ParamDef::choice("style", "Style", REACT_STYLES, 0),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "react.zoom_all",
+        "Sound Zoom",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 0),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "react.shake_bass",
+        "Bass Shake",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 1),
+            ParamDef::choice("style", "Style", REACT_STYLES, 1),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "react.shake_all",
+        "Sound Shake",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 1),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "react.colour_pop",
+        "Sound Colour Pop",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 2),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "react.flash_bass",
+        "Bass Flash",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 1),
+            ParamDef::choice("style", "Style", REACT_STYLES, 3),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "react.flash_treble",
+        "Treble Flash",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 3),
+            ParamDef::choice("style", "Style", REACT_STYLES, 3),
+        ],
+        &[],
+        Night,
+    ),
+    shader(
+        "react.split_all",
+        "Sound Colour Split",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 4),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "react.split_treble",
+        "Treble Colour Split",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 3),
+            ParamDef::choice("style", "Style", REACT_STYLES, 4),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "react.blur_bass",
+        "Bass Blur",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 1),
+            ParamDef::choice("style", "Style", REACT_STYLES, 5),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "react.glow_mid",
+        "Mid Glow",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 2),
+            ParamDef::choice("style", "Style", REACT_STYLES, 6),
+        ],
+        &[],
+        Night,
+    ),
+    shader(
+        "react.glow_all",
+        "Sound Glow",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 6),
+        ],
+        &[],
+        Sunset,
+    ),
+    shader(
+        "react.vignette_bass",
+        "Bass Vignette",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 1),
+            ParamDef::choice("style", "Style", REACT_STYLES, 7),
+        ],
+        &[],
+        Pet,
+    ),
+    shader(
+        "react.hue_mid",
+        "Mid Hue Shift",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 2),
+            ParamDef::choice("style", "Style", REACT_STYLES, 8),
+        ],
+        &[],
+        Landscape,
+    ),
+    shader(
+        "react.hue_all",
+        "Sound Hue Shift",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 8),
+        ],
+        &[],
+        Portrait,
+    ),
+    shader(
+        "react.tear_treble",
+        "Treble Tear",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 3),
+            ParamDef::choice("style", "Style", REACT_STYLES, 9),
+        ],
+        &[],
+        Night,
+    ),
+    shader(
+        "react.tear_all",
+        "Sound Tear",
+        "Sound Reactive",
+        AUDIO_SHADER,
+        &[
+            pct("sensitivity", "Sensitivity", 0.6),
+            pct("amount", "Amount", 0.7),
+            ParamDef::choice("band", "Reacts to", REACT_BANDS, 0),
+            ParamDef::choice("style", "Style", REACT_STYLES, 9),
+        ],
+        &[],
+        Landscape,
+    ),
 ];
 
 pub fn get(id: &str) -> Option<&'static EffectDef> {
@@ -1435,6 +2745,160 @@ pub fn motion(id: &str, t: f32, value: impl Fn(&str) -> f32) -> Motion {
                 m.scale = (FRAME_W * FRAME_W + FRAME_H * FRAME_H).sqrt() / FRAME_H;
             }
         }
+        "shake.sideways" => {
+            let a = amount * 55.0;
+            let w = 6.0 + speed * 24.0;
+            m.dx = (t * w).sin() * a;
+            m.scale = cover(a, 0.0, 0.0);
+            m.blur = amount * 0.05;
+        }
+        "shake.up_down" => {
+            let a = amount * 45.0;
+            let w = 6.0 + speed * 24.0;
+            m.dy = (t * w).sin() * a;
+            m.scale = cover(0.0, a, 0.0);
+            m.blur = amount * 0.05;
+        }
+        "shake.chaos" => {
+            let a = amount * 70.0;
+            let k = (t * (8.0 + speed * 20.0)).floor();
+            m.dx = (hash(k) * 2.0 - 1.0) * a;
+            m.dy = (hash(k + 9.7) * 2.0 - 1.0) * a;
+            m.rotation = (hash(k + 4.3) * 2.0 - 1.0) * amount * 2.5;
+            m.scale = cover(a, a, amount * 2.5);
+            m.blur = amount * 0.1;
+        }
+        "shake.mini_wave" => {
+            let w = 2.0 + speed * 8.0;
+            let a = amount * 30.0;
+            m.dx = (t * w).sin() * a;
+            m.dy = (t * w * 1.3 + 1.0).sin() * a;
+            m.rotation = (t * w * 0.7).sin() * amount * 0.8;
+            m.scale = cover(a, a, amount * 0.8);
+        }
+        "shake.pendulum" => {
+            let ph = tau * (0.3 + speed * 0.8) * t;
+            m.rotation = ph.sin() * amount * 8.0;
+            m.dx = ph.sin() * amount * 50.0;
+            m.scale = cover(amount * 50.0, 0.0, amount * 8.0);
+        }
+        "shake.vibration" => {
+            let w = 90.0 + speed * 120.0;
+            let a = amount * 10.0;
+            m.dx = (t * w).sin() * a;
+            m.dy = (t * w * 1.17).cos() * a;
+            m.scale = cover(a, a, 0.0);
+        }
+        "shake.rebound" => {
+            // A swing that overshoots and settles, over and over.
+            let ph = (t * (0.5 + speed)).fract();
+            m.rotation = (1.0 - Spring::new(2.5, 0.3).at(ph)) * amount * 10.0;
+            m.scale = cover(0.0, 0.0, amount * 12.0);
+        }
+        "shake.crash_in" => {
+            let ph = (t * (0.5 + speed * 1.5)).fract();
+            let hit = (1.0 - ph).powi(4);
+            m.scale = 1.0 + amount * 0.3 * hit;
+            m.dy = hit * amount * 30.0;
+            m.blur = amount * 0.2 * hit;
+        }
+        "shake.wobble" => {
+            let f = 0.4 + speed;
+            let a = amount * 18.0;
+            m.dx = wobble(t * f, 4.0) * a;
+            m.dy = wobble(t * f, 8.0) * a * 0.7;
+            m.rotation = wobble(t * f * 0.8, 12.0) * amount * 0.6;
+            m.scale = cover(a, a * 0.7, amount * 0.6);
+        }
+        "shake.focus_zoom" => {
+            let ph = (t * (0.4 + speed * 1.2)).fract();
+            let s = 0.5 - 0.5 * (tau * ph).cos();
+            m.scale = 1.0 + amount * 0.2 * s;
+            m.blur = amount * 0.15 * 4.0 * s * (1.0 - s);
+        }
+        "shake.bounce_cam" => {
+            let ph = (t * (0.7 + speed * 1.5)).fract();
+            let h = (ph * std::f32::consts::PI).sin();
+            let a = amount * 70.0;
+            m.dy = -h * a * (1.0 - ph);
+            m.scale = cover(0.0, a, 0.0);
+        }
+        "shake.heart_shake" => {
+            let ph = (t * value("bpm").max(1.0) / 60.0).fract();
+            let env = (-ph * 9.0).exp() + 0.6 * (-((ph - 0.3).abs()) * 16.0).exp();
+            let a = amount * 35.0;
+            m.dx = (t * 90.0).sin() * a * env;
+            m.dy = (t * 77.0).cos() * a * env;
+            m.scale = cover(a, a, 0.0);
+        }
+        "shake.silky" => {
+            let w = 0.5 + speed * 1.5;
+            m.dx = (t * w).sin() * amount * 70.0;
+            m.dy = (t * w * 0.8 + 1.0).sin() * amount * 40.0;
+            m.scale = cover(amount * 70.0, amount * 40.0, 0.0);
+            m.blur = amount * 0.04;
+        }
+        "zoom.expand" => {
+            let ph = (t * (0.4 + speed)).fract();
+            let e = 1.0 - (1.0 - ph).powi(3);
+            m.scale = 0.78 + 0.22 * e;
+        }
+        "shake.flash_black" => {
+            let ph = (t * (0.8 + speed * 2.0)).fract();
+            m.opacity = 1.0 - amount * (1.0 - ph * 6.0).max(0.0);
+        }
+        "zoom.wobble" => {
+            let f = 0.6 + speed * 3.0;
+            let s = 0.5 - 0.5 * (tau * f * t).cos();
+            m.rotation = (tau * f * t * 0.5).sin() * amount * 2.0;
+            m.scale = (1.0 + amount * 0.1 * s) * cover(0.0, 0.0, amount * 2.0);
+        }
+        "zoom.rotary" => {
+            m.rotation = (tau * (0.1 + speed * 0.3) * t).sin() * amount * 8.0;
+            m.scale = cover(0.0, 0.0, amount * 8.0) + amount * 0.1;
+        }
+        "zoom.slider" => {
+            let e = smooth01((t * (0.2 + speed * 0.6)).fract());
+            m.scale = 1.0 + amount * 0.3;
+            m.dx = (e * 2.0 - 1.0) * amount * FRAME_W * 0.12;
+        }
+        "zoom.s_curve" => {
+            let e = smooth01((t * (0.2 + speed * 0.6)).fract());
+            m.dx = (e * tau).sin() * amount * 60.0;
+            m.dy = (e - 0.5) * amount * 80.0;
+            m.scale = cover(amount * 60.0, amount * 40.0, 0.0) + amount * 0.2 * e;
+        }
+        "zoom.throb" => {
+            let ph = (t * (0.8 + speed * 2.0)).fract();
+            let throb = (-ph * 8.0).exp();
+            m.scale = 1.0 + amount * 0.25 * throb;
+            m.blur = amount * 0.2 * throb;
+        }
+        "zoom.mini" => {
+            let f = 0.8 + speed * 3.0;
+            m.scale = 1.0 + amount * 0.05 * (0.5 - 0.5 * (tau * f * t).cos());
+        }
+        "zoom.exposure" => {
+            let ph = (t * (0.3 + speed * 0.8)).fract();
+            m.scale = 1.0 + amount * 0.3 * ph;
+            m.blur = amount * 0.2 * ph * ph;
+        }
+        "zoom.sequence" => {
+            let step = ((t * (0.5 + speed)).fract() * 4.0).floor();
+            m.scale = 1.0 + amount * 0.08 * step;
+        }
+        "zoom.freeze_focus" => {
+            let ph = (t * (0.4 + speed * 0.8)).fract();
+            let k = (ph * 4.0).min(1.0);
+            m.scale = 1.0 + amount * 0.3 * (1.0 - (1.0 - k).powi(3));
+            m.blur = amount * 0.15 * (1.0 - k);
+        }
+        "zoom.flash_lens" => {
+            let ph = (t * (0.5 + speed * 1.2)).fract();
+            let s = smooth01(ph);
+            m.scale = 1.0 + amount * 0.35 * s;
+            m.blur = amount * 0.25 * 4.0 * s * (1.0 - s);
+        }
         _ => {}
     }
     m
@@ -1510,6 +2974,14 @@ mod tests {
             "Overlay",
             "Frame",
             "Split Screen",
+            "Flicker",
+            "Glass",
+            "Sparkle",
+            "Grunge",
+            "Celebration",
+            "Layout 3D",
+            "Beat",
+            "Sound Reactive",
         ];
         assert_eq!(super::super::categories(EFFECTS, |e| e.category), order);
     }

@@ -37,6 +37,60 @@ pub static FONTS: &[FontDef] = &[
     font!("Press Start 2P", "PressStart2P-Regular.ttf"),
     font!("VT323", "VT323-Regular.ttf"),
     font!("Special Elite", "SpecialElite-Regular.ttf"),
+    font!("Montserrat", "Montserrat-ExtraBold.ttf"),
+    font!("Montserrat Light", "Montserrat-Light.ttf"),
+    font!("Outfit", "Outfit-Bold.ttf"),
+    font!("Outfit Light", "Outfit-Light.ttf"),
+    font!("Sora", "Sora-Bold.ttf"),
+    font!("Space Grotesk", "SpaceGrotesk-Bold.ttf"),
+    font!("Unbounded", "Unbounded-Bold.ttf"),
+    font!("Bricolage Grotesque", "BricolageGrotesque-ExtraBold.ttf"),
+    font!("Teko", "Teko-SemiBold.ttf"),
+    font!("Oswald", "Oswald-SemiBold.ttf"),
+    font!("Big Shoulders Display", "BigShouldersDisplay-ExtraBold.ttf"),
+    font!("Cinzel", "Cinzel-Bold.ttf"),
+    font!("Caveat", "Caveat-Bold.ttf"),
+    font!("JetBrains Mono", "JetBrainsMono-Bold.ttf"),
+    font!("Lilita One", "LilitaOne-Regular.ttf"),
+    font!("Titan One", "TitanOne-Regular.ttf"),
+    font!("Passion One", "PassionOne-Black.ttf"),
+    font!("Chango", "Chango-Regular.ttf"),
+    font!("Bowlby One", "BowlbyOne-Regular.ttf"),
+    font!("Staatliches", "Staatliches-Regular.ttf"),
+    font!("Archivo Black", "ArchivoBlack-Regular.ttf"),
+    font!("Krona One", "KronaOne-Regular.ttf"),
+    font!("Michroma", "Michroma-Regular.ttf"),
+    font!("Russo One", "RussoOne-Regular.ttf"),
+    font!("Audiowide", "Audiowide-Regular.ttf"),
+    font!("Rajdhani Bold", "Rajdhani-Bold.ttf"),
+    font!("Chakra Petch Bold", "ChakraPetch-Bold.ttf"),
+    font!("Quantico Bold", "Quantico-Bold.ttf"),
+    font!("Dela Gothic One", "DelaGothicOne-Regular.ttf"),
+    font!("Bungee", "Bungee-Regular.ttf"),
+    font!("Bungee Inline", "BungeeInline-Regular.ttf"),
+    font!("Faster One", "FasterOne-Regular.ttf"),
+    font!("Rubik Glitch", "RubikGlitch-Regular.ttf"),
+    font!("Londrina Solid", "LondrinaSolid-Black.ttf"),
+    font!("Limelight", "Limelight-Regular.ttf"),
+    font!("Stalinist One", "StalinistOne-Regular.ttf"),
+    font!("Poiret One", "PoiretOne-Regular.ttf"),
+    font!("Gloock", "Gloock-Regular.ttf"),
+    font!("Cinzel Decorative", "CinzelDecorative-Bold.ttf"),
+    font!("Allura", "Allura-Regular.ttf"),
+    font!("Sacramento", "Sacramento-Regular.ttf"),
+    font!("Parisienne", "Parisienne-Regular.ttf"),
+    font!("Playball", "Playball-Regular.ttf"),
+    font!("Courgette", "Courgette-Regular.ttf"),
+    font!("Kalam Bold", "Kalam-Bold.ttf"),
+    font!("Damion", "Damion-Regular.ttf"),
+    font!("Norican", "Norican-Regular.ttf"),
+    font!("Mr Dafoe", "MrDafoe-Regular.ttf"),
+    font!("Kaushan Script", "KaushanScript-Regular.ttf"),
+    font!("Marck Script", "MarckScript-Regular.ttf"),
+    font!("Nanum Brush Script", "NanumBrushScript-Regular.ttf"),
+    font!("Space Mono Bold", "SpaceMono-Bold.ttf"),
+    font!("IBM Plex Mono Bold", "IBMPlexMono-Bold.ttf"),
+    font!("Major Mono Display", "MajorMonoDisplay-Regular.ttf"),
 ];
 
 pub fn get(name: &str) -> &'static FontDef {
@@ -53,4 +107,28 @@ pub fn inter() -> &'static [u8] {
 
 pub fn poppins_semibold() -> &'static [u8] {
     get("Poppins SemiBold").data
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ab_glyph::{Font, FontRef};
+
+    #[test]
+    fn every_font_loads_and_has_letters_and_digits() {
+        let mut names = std::collections::HashSet::new();
+        for f in FONTS {
+            assert!(
+                names.insert(f.name.to_ascii_lowercase()),
+                "{} twice",
+                f.name
+            );
+            let font =
+                FontRef::try_from_slice(f.data).unwrap_or_else(|e| panic!("{}: {e}", f.name));
+            for c in ['A', 'g', '7'] {
+                assert!(font.glyph_id(c).0 != 0, "{} has no '{c}'", f.name);
+            }
+        }
+        assert!(FONTS.len() >= 70, "{} fonts", FONTS.len());
+    }
 }

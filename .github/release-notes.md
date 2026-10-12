@@ -1,7 +1,12 @@
 ## TidyCuts __VERSION__
 
-The first full release of TidyCuts, a free and open-source video editor for
-Windows and Mac.
+A big update to the free and open-source video editor for Windows and Mac: the
+libraries were rebuilt in a modern style (160 titles, 148 effects, 96 filters,
+130 transitions and 224 stickers listed by default, with the old designs behind
+an **Old designs** switch), a use filter for every library (business, gaming,
+travel, reviews and more), sound-reactive effects, and quick buttons beside the
+timeline. Projects saved with 1.0.0 open as before. The full list is in the
+[change log](https://github.com/__REPO__/blob/main/CHANGELOG.md).
 
 ### Downloads
 
@@ -27,6 +32,8 @@ download is the one we built.
 
 FFmpeg is included. Everything TidyCuts makes (titles, effects, filters,
 stickers, music) is made by TidyCuts itself and is free to use in your videos.
+The fonts and the sample photographs on the library tiles are open licences or
+public domain; they are listed in THIRD-PARTY-NOTICES.md.
 
 What it does, how it was made, and the licence are on the
 [project page](https://github.com/__REPO__#readme).

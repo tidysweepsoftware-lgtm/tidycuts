@@ -3,7 +3,7 @@
 [Back to the project page](../README.md)
 
 All pictures are taken from the real app. The sample pictures on the library tiles
-are photographs taken by the project's owner.
+are public-domain (CC0) photographs, credited in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## The editor
 
@@ -17,12 +17,12 @@ are photographs taken by the project's owner.
     <td width="50%"><img src="images/library-blur.jpg" alt="Blur Area and Pixelate Area"><br><sub><b>Blur a face.</b> Blur Area and Pixelate Area hide anything you choose.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="images/library-filters.jpg" alt="Filters"><br><sub><b>96 filters</b> in styles like Minimal, Pastel, Night and Film.</sub></td>
+    <td width="50%"><img src="images/library-filters.jpg" alt="Filters"><br><sub><b>96 filters</b> in styles like Genre, Skin Tones, Film Stocks, City Night and Gaming.</sub></td>
     <td width="50%"><img src="images/library-titles.jpg" alt="Titles"><br><sub><b>Titles and animated captions.</b></sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="images/library-transitions.jpg" alt="Transitions"><br><sub><b>73 transitions</b>, from dissolves to light leaks and whip pans.</sub></td>
-    <td width="50%"><img src="images/library-stickers.jpg" alt="Stickers"><br><sub><b>117 stickers</b>, drawn in code.</sub></td>
+    <td width="50%"><img src="images/library-transitions.jpg" alt="Transitions"><br><sub><b>130 transitions</b>, from dissolves to glass slabs, torus rings and cracking ice.</sub></td>
+    <td width="50%"><img src="images/library-stickers.jpg" alt="Stickers"><br><sub><b>224 stickers</b>, drawn in code: call-outs, word pops, fire and fireworks.</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="images/library-layouts.jpg" alt="Layouts"><br><sub><b>Split screens and audio visualizers.</b></sub></td>

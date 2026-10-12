@@ -17,9 +17,11 @@ fn main() {
         sample::meadow(w, h),
         sample::pet(w, h),
         sample::nap(w, h),
+        sample::city(w, h),
+        sample::food(w, h),
     ];
     let t = std::time::Instant::now();
-    let (sw, sh) = (w * 3, h * 3);
+    let (sw, sh) = (w * 3, h * 4);
     let mut sheet = vec![0u8; (sw * sh * 3) as usize];
     for (i, p) in pics.iter().enumerate() {
         let (x0, y0) = ((i as u32 % 3) * w, (i as u32 / 3) * h);

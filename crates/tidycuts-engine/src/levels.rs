@@ -130,6 +130,25 @@ impl AudioLevels {
             .collect()
     }
 
+    /// How loud the sound is at timeline time `t`, for sound-reactive effects:
+    /// (everything, bass, mid, treble), each 0..1. It follows the clip's own
+    /// sound; a clip with none (a picture, a title) follows the whole mix.
+    pub fn reactive(&self, project: &Project, clip: &Clip, t: Time) -> [f32; 4] {
+        let bands = if self.inner.demo.load(Ordering::Relaxed) {
+            demo_bands(clip.local(t).as_secs_f64())
+        } else {
+            let own = VisualizerSpec {
+                source: Some(clip.id),
+                ..VisualizerSpec::default()
+            };
+            let mut b = self.bands(project, &own, t);
+            if b.iter().all(|v| *v < 0.001) {
+                b = self.bands(project, &VisualizerSpec::default(), t);
+            }
+            b
+        };
+        summarise(&bands)
+    }
     /// The 64 band levels of what plays at `t`: the whole mix, or one clip.
     pub fn bands(&self, project: &Project, spec: &VisualizerSpec, t: Time) -> [f32; BANDS] {
         let dt = Time::from_secs_f64(1.0 / 30.0);
@@ -156,6 +175,18 @@ impl AudioLevels {
     }
 }
 
+/// (Everything, bass, mid, treble) from the 64 bands: each the loudest band in
+/// its range, and the first a weighted mix of the three.
+fn summarise(bands: &[f32; BANDS]) -> [f32; 4] {
+    let top = |a: usize, b: usize| bands[a..b].iter().fold(0f32, |m, x| m.max(*x));
+    let (bass, mid, treble) = (top(0, 14), top(14, 40), top(40, BANDS));
+    [
+        (bass * 0.5 + mid * 0.3 + treble * 0.2).clamp(0.0, 1.0),
+        bass,
+        mid,
+        treble,
+    ]
+}
 /// Clips whose sound plays somewhere in `from..to`, with their media.
 fn sounding<'a>(
     project: &'a Project,
@@ -466,6 +497,26 @@ mod tests {
         assert!(bars.iter().any(|b| *b > 0.5));
     }
 
+    #[test]
+    fn reactive_levels_move_with_time_and_stay_in_range() {
+        let levels = AudioLevels::default();
+        levels.set_demo(true);
+        let project = Project::default();
+        let clip = Clip::generated(
+            tidycuts_core::Generator::Solid([0.0; 4]),
+            Time::ZERO,
+            Time::from_secs_f64(5.0),
+        );
+        let a = levels.reactive(&project, &clip, Time::from_secs_f64(0.1));
+        let b = levels.reactive(&project, &clip, Time::from_secs_f64(0.9));
+        assert_ne!(a, b, "the demo sound moves");
+        for v in a.iter().chain(b.iter()) {
+            assert!((0.0..=1.0).contains(v), "{v}");
+        }
+        // Without any sound, the levels are zero.
+        let quiet = AudioLevels::default().reactive(&project, &clip, Time::ZERO);
+        assert_eq!(quiet, [0.0; 4]);
+    }
     #[test]
     fn demo_levels_move() {
         let a = demo_bands(0.0);

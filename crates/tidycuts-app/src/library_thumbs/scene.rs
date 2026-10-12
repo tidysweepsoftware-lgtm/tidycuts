@@ -56,6 +56,8 @@ pub enum Pic {
     Pet,
     Nap,
     Night,
+    City,
+    Food,
     GreenScreen,
     Checker,
 }
@@ -73,6 +75,8 @@ impl Pic {
             Pic::Pet => "pet",
             Pic::Nap => "nap",
             Pic::Night => "night",
+            Pic::City => "city",
+            Pic::Food => "food",
             Pic::GreenScreen => "green-screen",
             Pic::Checker => "checker",
         }
@@ -89,6 +93,8 @@ impl Pic {
             Pic::Pet,
             Pic::Nap,
             Pic::Night,
+            Pic::City,
+            Pic::Food,
             Pic::GreenScreen,
             Pic::Checker,
         ]
@@ -106,6 +112,8 @@ impl Pic {
             Sample::Pet => Pic::Pet,
             Sample::Nap => Pic::Nap,
             Sample::Night => Pic::Night,
+            Sample::City => Pic::City,
+            Sample::Food => Pic::Food,
         }
     }
 
@@ -119,6 +127,8 @@ impl Pic {
             Pic::Pet => sample::pet(w, h),
             Pic::Nap => sample::nap(w, h),
             Pic::Night => sample::night(w, h),
+            Pic::City => sample::city(w, h),
+            Pic::Food => sample::food(w, h),
             Pic::GreenScreen => sample::portrait_green(w, h),
             Pic::Checker => checker(w, h),
         }

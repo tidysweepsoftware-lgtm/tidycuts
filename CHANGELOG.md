@@ -2,6 +2,26 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.1.0 (the modern library)
+
+The libraries were rebuilt in a modern style. The old designs are still there
+behind an **Old designs** switch, and every project saved with 1.0.0 opens as
+before.
+
+**New designs**
+- **Titles (160 listed, 223 in all):** cards that build themselves in stages (name cards, news bars, pills), clean and soft titles, bold and glossy 3D, gold and metal, neon and glass, script and elegant, tech and gaming, sport and fitness, business and events, 16 captions whose highlight follows the words, and 16 end credits. 54 new open fonts (74 in all).
+- **Transitions (130 listed, 172 in all):** motion-graphic bars, circles, rings, colour waves and stepped blocks; brush strokes and paper tears; dust dissolves; camera shutter, speed rush and photo freeze; gold, silver and ice light sweeps; frosted panes and card pushes; glass balls, glass slabs, tile flips, torus rings, shattering glass and cracking ice.
+- **Effects (148 listed, 214 in all):** 25 camera shakes and zooms, 10 flicker styles, glass shatter and cracks, glitter and starbursts, grunge, neon frames, fireworks, 3D layouts, 16 beat effects that follow a tempo, and 17 sound-reactive effects that move with the loudness, bass, mid or treble of the clip's own sound.
+- **Filters (96 listed, 192 in all):** genre, soft matte, skin tones, film stocks, city night, colour maps, log recovery, gaming, business and food looks.
+- **Stickers (224 listed, 341 in all):** animated call-outs (subscribe, follow, like, share, comment, bell, link, swipe), words in four treatments, marker marks that draw themselves, bursts, confetti and balloons, fire, smoke, lightning and energy, ratings, discount seals, price tags, ribbons, map pins, check seals, and screen graphics.
+
+**Finding things**
+- A row of **use chips** under the library search (business, gaming, travel, reviews, vlog, education, food, fitness, real estate, music, events) filters every tab to what suits that kind of video. Searching also finds uses.
+- The library shows the new designs; **Old designs** brings the earlier ones back.
+- Ten quick buttons beside the timeline for things that were only in menus: freeze frame, marker, detach audio, trim to playhead, smart cuts (scene changes, beat markers, line up by sound), rotate, voiceover, snapshot, thumbnail and scopes.
+
+**Pictures**
+- The sample pictures on the tiles are now public-domain (CC0) photographs, listed with their sources in THIRD-PARTY-NOTICES.md.
 ## 1.0.0 (first release)
 
 **Editing**

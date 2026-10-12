@@ -168,6 +168,36 @@ fn fbm(p: vec2<f32>) -> f32 {
     return v;
 }
 
+// Fractal noise whose layers slide at different speeds, so the pattern flows
+// instead of popping. `t` is in seconds.
+fn flow_fbm(p: vec2<f32>, t: f32) -> f32 {
+    var v = 0.0;
+    var a = 0.5;
+    var q = p;
+    for (var i = 0; i < 5; i = i + 1) {
+        v = v + a * vnoise(q + vec2<f32>(t * (0.35 + 0.2 * f32(i)), -t * 0.25));
+        q = q * 2.03 + vec2<f32>(17.1, 9.2);
+        a = a * 0.5;
+    }
+    return v;
+}
+
+// Domain-warped noise: sampled at points pushed around by two other noises,
+// so it reads as drifting smoke or flame and not as clouds.
+fn warp_fbm(p: vec2<f32>, t: f32) -> f32 {
+    let q = vec2<f32>(flow_fbm(p, t), flow_fbm(p + vec2<f32>(5.2, 1.3), t));
+    return flow_fbm(p + 3.5 * q, t * 0.8);
+}
+
+// A swirling, divergence-free vector field made from the noise. Moving
+// things along it makes them curl around each other like smoke.
+fn curl2(p: vec2<f32>, t: f32) -> vec2<f32> {
+    let e = 0.02;
+    let dx = flow_fbm(p + vec2<f32>(e, 0.0), t) - flow_fbm(p - vec2<f32>(e, 0.0), t);
+    let dy = flow_fbm(p + vec2<f32>(0.0, e), t) - flow_fbm(p - vec2<f32>(0.0, e), t);
+    return vec2<f32>(dy, -dx) / (2.0 * e);
+}
+
 fn rot2(a: f32) -> mat2x2<f32> {
     let c = cos(a);
     let s = sin(a);

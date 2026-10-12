@@ -1,11 +1,12 @@
 //! Sample pictures used for library thumbnails and previews of effects,
 //! filters and transitions.
 //!
-//! They are photographs taken by the app's author and embedded in the app
-//! (`assets/`, used with their permission): a lake at sunset, a swan, young
-//! swans on a meadow and trees in the evening light, plus a cut-out portrait
-//! of the author for effects that need a face. The night picture is the lake
-//! photo graded to moonlight, and the bokeh behind the portrait is drawn.
+//! They are photographs embedded in the app (`assets/photos/`), all released
+//! into the public domain (CC0) and listed with their sources in
+//! `THIRD-PARTY-NOTICES.md`: trees in low sun, a lake at sunset, a bird on
+//! the water, a green mountain meadow, two cats, a city by night, a city by
+//! day and a latte being poured. The portrait is a cut-out of the app's
+//! author for effects that need a face, and the bokeh behind it is drawn.
 //! Every picture is resolution independent: the same scene at any size.
 
 use std::sync::OnceLock;
@@ -249,24 +250,36 @@ embedded!(
     Photo::from_jpeg(include_bytes!("../assets/photos/lake.jpg"))
 );
 embedded!(
-    swan_photo,
-    Photo::from_jpeg(include_bytes!("../assets/photos/swan.jpg"))
+    bird_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/bird.jpg"))
 );
 embedded!(
-    cygnets_photo,
-    Photo::from_jpeg(include_bytes!("../assets/photos/cygnets.jpg"))
+    mountain_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/mountain.jpg"))
 );
 embedded!(
     pet_photo,
-    Photo::from_jpeg(include_bytes!("../assets/photos/pet.jpg"))
+    Photo::from_jpeg(include_bytes!("../assets/photos/cat.jpg"))
 );
 embedded!(
     nap_photo,
-    Photo::from_jpeg(include_bytes!("../assets/photos/nap.jpg"))
+    Photo::from_jpeg(include_bytes!("../assets/photos/cat_nap.jpg"))
 );
 embedded!(
-    trees_photo,
-    Photo::from_jpeg(include_bytes!("../assets/photos/trees.jpg"))
+    forest_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/forest.jpg"))
+);
+embedded!(
+    night_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/city_night.jpg"))
+);
+embedded!(
+    city_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/city.jpg"))
+);
+embedded!(
+    food_photo,
+    Photo::from_jpeg(include_bytes!("../assets/photos/food.jpg"))
 );
 
 /// A photograph filling the picture (cropped, never stretched), keeping the
@@ -292,51 +305,49 @@ fn as_shot(c: Rgb) -> Rgb {
     c
 }
 
-/// Moonlight: a steep curve darkens everything but the brightest lights
-/// (the sun turns into a moon) and tints the rest a cold blue.
-fn moonlight(c: Rgb) -> Rgb {
-    let d = |v: f32| v.powf(2.4);
-    let l = d(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]);
-    [
-        mix(d(c[0]), l, 0.5) * 0.5 + 0.012,
-        mix(d(c[1]), l, 0.5) * 0.72 + 0.024,
-        mix(d(c[2]), l, 0.5) * 1.1 + 0.06,
-    ]
-}
-
-/// Trees in the evening light, sky above.
+/// Trees against the low sun beside a lake.
 pub fn landscape(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, trees_photo(), (0.5, 0.5), as_shot)
+    photo_scene(width, height, forest_photo(), (0.5, 0.45), as_shot)
 }
 
-/// A lake at sunset with a swan and her young on the bank.
+/// A lake under an orange sunset sky.
 pub fn sunset(width: u32, height: u32) -> RgbaImage {
     photo_scene(width, height, lake_photo(), (0.5, 0.5), as_shot)
 }
 
-/// The same lake graded to moonlight.
+/// A city skyline at night with light trails on the road.
 pub fn night(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, lake_photo(), (0.5, 0.5), moonlight)
+    photo_scene(width, height, night_photo(), (0.5, 0.5), as_shot)
 }
 
-/// A swan on the grass.
+/// A duck swimming on blue water.
 pub fn wildlife(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, swan_photo(), (0.62, 0.5), as_shot)
+    photo_scene(width, height, bird_photo(), (0.55, 0.55), as_shot)
 }
 
-/// Young swans on the grass.
+/// A green mountain valley with flowers.
 pub fn meadow(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, cygnets_photo(), (0.45, 0.5), as_shot)
+    photo_scene(width, height, mountain_photo(), (0.5, 0.5), as_shot)
 }
 
-/// A cat looking into the camera.
+/// A black cat on the back of a sofa.
 pub fn pet(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, pet_photo(), (0.45, 0.45), as_shot)
+    photo_scene(width, height, pet_photo(), (0.45, 0.4), as_shot)
 }
 
-/// A cat resting.
+/// A cat curled up asleep on a bed.
 pub fn nap(width: u32, height: u32) -> RgbaImage {
-    photo_scene(width, height, nap_photo(), (0.4, 0.5), as_shot)
+    photo_scene(width, height, nap_photo(), (0.5, 0.4), as_shot)
+}
+
+/// A bridge and the city skyline in the daytime.
+pub fn city(width: u32, height: u32) -> RgbaImage {
+    photo_scene(width, height, city_photo(), (0.5, 0.45), as_shot)
+}
+
+/// A barista pouring milk into a latte.
+pub fn food(width: u32, height: u32) -> RgbaImage {
+    photo_scene(width, height, food_photo(), (0.5, 0.62), as_shot)
 }
 
 // ---- a portrait ---------------------------------------------------------------

@@ -11,7 +11,12 @@ pub mod gpu;
 pub mod looks;
 mod looks_gpu;
 pub mod lut;
+pub mod motion;
+pub mod motion_blur;
+pub mod noise;
+pub mod particles;
 pub mod sample;
+pub mod sdf;
 pub mod text;
 
 pub use compositor::{Compositor, Nv12Target, Renderer, Target};

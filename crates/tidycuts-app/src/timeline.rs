@@ -703,6 +703,202 @@ fn toolbar_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect) {
         }
     }
 
+    // Quick buttons for things that used to be buried in menus. They stop
+    // where the zoom and snapping buttons on the right begin, so a narrow
+    // window simply shows fewer of them.
+    let limit = rect.right() - 12.0 - 340.0 - 16.0;
+    let fits = |r: Rect| r.right() <= limit;
+
+    let r = next(true);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::SNOWFLAKE,
+            &format!("Freeze frame: hold the picture at the playhead ({cmd}Alt+F)"),
+            visual,
+            false,
+        )
+        .clicked()
+    {
+        app.freeze_frame();
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::FLAG,
+            "Add a marker at the playhead (M)",
+            true,
+            false,
+        )
+        .clicked()
+    {
+        app.add_marker_at_playhead();
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::LINK_BREAK,
+            &format!("Detach audio: put the sound of the clip on its own track ({cmd}Alt+D)"),
+            has_sel,
+            false,
+        )
+        .clicked()
+    {
+        app.detach_audio();
+    }
+    // Trim: cut the selected clip's start or end at the playhead.
+    let r = next(false);
+    if fits(r) {
+        let trim = tool(
+            ui,
+            r,
+            ph::BRACKETS_SQUARE,
+            "Trim the selected clip to the playhead",
+            has_sel,
+            false,
+        );
+        egui::Popup::menu(&trim).show(|ui| {
+            ui.set_min_width(220.0);
+            if ui.button("Trim start to playhead   Alt+[").clicked() {
+                app.trim_to_playhead(Edge::Start);
+                ui.close();
+            }
+            if ui.button("Trim end to playhead   Alt+]").clicked() {
+                app.trim_to_playhead(Edge::End);
+                ui.close();
+            }
+        });
+    }
+    // Smart cuts: find scenes and beats, or line clips up by their sound.
+    let r = next(false);
+    if fits(r) {
+        let smart = tool(
+            ui,
+            r,
+            ph::MAGIC_WAND,
+            "Smart cuts: split at scene changes, mark the beat, line clips up by sound",
+            has_sel,
+            false,
+        );
+        egui::Popup::menu(&smart).show(|ui| {
+            use crate::detection::Detection;
+            ui.set_min_width(240.0);
+            let clip = sel;
+            let ok = |app: &TidyCutsApp, kind| {
+                clip.is_some_and(|c| crate::detection::unsuitable(app, c, kind).is_none())
+            };
+            let scenes = Detection::Scenes { threshold: 0.3 };
+            if ui
+                .add_enabled(ok(app, scenes), egui::Button::new("Split at scene changes"))
+                .clicked()
+            {
+                if let Some(id) = clip {
+                    app.start_detection(id, scenes);
+                }
+                ui.close();
+            }
+            if ui
+                .add_enabled(
+                    ok(app, Detection::Beats),
+                    egui::Button::new("Add beat markers"),
+                )
+                .clicked()
+            {
+                if let Some(id) = clip {
+                    app.start_detection(id, Detection::Beats);
+                }
+                ui.close();
+            }
+            if ui
+                .add_enabled(
+                    app.selection.len() >= 2,
+                    egui::Button::new("Line up by sound (select two or more)"),
+                )
+                .clicked()
+            {
+                let ids = app.selection.clone();
+                app.start_sync(&ids);
+                ui.close();
+            }
+        });
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::ARROWS_CLOCKWISE,
+            "Rotate the selected clip 90° clockwise",
+            visual,
+            false,
+        )
+        .clicked()
+    {
+        app.rotate_selection_90();
+    }
+
+    let r = next(true);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::MICROPHONE,
+            "Voiceover: type some text and have it read aloud onto an audio track",
+            true,
+            false,
+        )
+        .clicked()
+    {
+        let ctx = ui.ctx().clone();
+        app.dialogs.open_voiceover(&ctx);
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::CAMERA,
+            "Take a snapshot of the frame at the playhead",
+            true,
+            false,
+        )
+        .clicked()
+    {
+        app.take_snapshot();
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::IMAGE_SQUARE,
+            "Make a thumbnail with big lettering",
+            true,
+            false,
+        )
+        .clicked()
+    {
+        crate::dialogs::open_thumbnail(app);
+    }
+    let r = next(false);
+    if fits(r)
+        && tool(
+            ui,
+            r,
+            ph::CHART_BAR,
+            "Scopes: waveform, vectorscope and histogram of the picture",
+            true,
+            app.scopes.open,
+        )
+        .clicked()
+    {
+        app.scopes.open = !app.scopes.open;
+    }
     // Right side, from the right edge (12 in): zoom in, a 110-pixel slider with
     // 6 pixels beside it, zoom out, a line, then fit, track height, snapping
     // and magnetic; everything 3 apart.
@@ -822,7 +1018,12 @@ fn toolbar_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect) {
             app.timeline.zoom_by(f);
         }
     });
-    for sx in seps.borrow().iter() {
+    // Lines that would fall among the hidden quick buttons are left out.
+    for sx in seps
+        .borrow()
+        .iter()
+        .filter(|sx| **sx < limit || **sx > limit + 100.0)
+    {
         ui.painter().vline(
             *sx + 0.5,
             (cy - 9.0)..=(cy + 9.0),

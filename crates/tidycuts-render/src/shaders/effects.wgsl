@@ -992,7 +992,7 @@ fn fx_dust(uv: vec2f) -> vec4f {
             for (var i = -1; i <= 1; i = i + 1) {
                 let cell = g + vec2f(f32(i), f32(j));
                 let h = hash22(cell + fl * 31.0);
-                if h.x > u.p0.x * 0.5 {
+                if h.x > u.p0.x * 0.6 {
                     continue;
                 }
                 let h2 = hash22(cell * 1.9 + 4.7);
@@ -2187,6 +2187,98 @@ fn fx_dispatch_b(uv: vec2<f32>) -> vec4<f32> {
     }
 }
 
+// Shockwave: a ring races out from a point, bending the picture around it
+// with a colour fringe and a white-hot edge, then the next one follows.
+// p0 = (strength, speed, centre x, centre y).
+fn fx_shockwave(uv: vec2<f32>) -> vec4<f32> {
+    let asp = aspect();
+    let p = (uv - u.p0.zw) * vec2<f32>(asp, 1.0);
+    let dist = length(p);
+    let dir = p / max(dist, 1e-4);
+    let period = mix(2.4, 0.9, u.p0.y);
+    let ph = fract(u.time / period);
+    let radius = ph * 1.4;
+    let width = mix(0.05, 0.12, u.p0.x) * (0.5 + 0.5 * ph);
+    let d = dist - radius;
+    let sweep = d / width;
+    // A pinch just inside the ring and a bulge just outside it.
+    let push = -sweep * exp(-sweep * sweep);
+    let fade = (1.0 - ph) * smoothstep(0.0, 0.05, ph);
+    let off = dir * push * (u.p0.x * 0.14 * fade) * vec2<f32>(1.0 / asp, 1.0);
+    let fringe = off * 0.35;
+    let a = sa(uv + off).a;
+    let rgb = vec3<f32>(sa(uv + off + fringe).r, sa(uv + off).g, sa(uv + off - fringe).b);
+    let hot = exp(-pow((d + 0.15 * width) / (0.18 * width), 2.0)) * fade * u.p0.x;
+    return vec4<f32>(min(rgb + vec3<f32>(hot * 0.7) * a, vec3<f32>(a)), a);
+}
+
+// Colour flicker family: ten styles from one shader, picked by p0.z.
+// p0 = (amount, speed, style, variation).
+// Styles: 0 negative, 1 colour flash, 2 RGB stroke, 3 neon swing,
+// 4 hallucination, 5 exposure jitter, 6 hue cycle, 7 black-and-white
+// strobe, 8 colour slice, 9 pulse flash.
+fn fx_flicker(uv: vec2f) -> vec4f {
+    let amount = u.p0.x;
+    let tt = u.time * mix(2.0, 14.0, u.p0.y);
+    let k = floor(tt);
+    let f = fract(tt);
+    let seed = u.p0.w * 31.0;
+    let h = hash11(k + seed);
+    let style = u32(max(u.p0.z, 0.0) + 0.5);
+    let c = fx_get(uv);
+    var rgb = c.rgb;
+    switch style {
+        case 0u: {
+            rgb = mix(rgb, vec3f(1.0) - rgb, step(0.5, h) * amount);
+        }
+        case 1u: {
+            let tint = hsv2rgb(vec3f(hash11(k * 1.7 + seed), 0.75, 1.0));
+            let flash = pow(1.0 - f, 2.0) * step(0.35, h) * amount;
+            rgb = fx_screen(rgb, tint * flash);
+        }
+        case 2u: {
+            let off = (hash11(k * 2.3 + seed) - 0.5) * 0.04 * amount * step(0.4, h);
+            let o = vec2f(off, off * 0.4);
+            rgb = vec3f(fx_get(uv + o).r, rgb.g, fx_get(uv - o).b);
+        }
+        case 3u: {
+            let hsv = rgb2hsv(rgb);
+            let swing = sin(u.time * (1.0 + u.p0.y * 6.0)) * 0.5 * amount;
+            rgb = hsv2rgb(vec3f(fract(hsv.x + swing), clamp(hsv.y * (1.0 + amount * 0.6), 0.0, 1.0), hsv.z));
+        }
+        case 4u: {
+            let o = vec2f(0.012, 0.006) * amount * (0.5 + 0.5 * sin(u.time * 3.0));
+            let ha = rgb2hsv(fx_get(uv + o).rgb);
+            let hb = rgb2hsv(fx_get(uv - o).rgb);
+            let ga = hsv2rgb(vec3f(fract(ha.x + 0.33), ha.y, ha.z));
+            let gb = hsv2rgb(vec3f(fract(hb.x + 0.66), hb.y, hb.z));
+            rgb = mix(rgb, max(rgb, max(ga, gb) * 0.9), 0.55 * amount + 0.1);
+        }
+        case 5u: {
+            rgb = rgb * (1.0 + (h - 0.5) * amount * 1.2);
+        }
+        case 6u: {
+            let hsv = rgb2hsv(rgb);
+            let cyc = hsv2rgb(vec3f(fract(hsv.x + u.time * (0.1 + u.p0.y * 0.8)), clamp(hsv.y * (1.0 + 0.4 * amount), 0.0, 1.0), hsv.z));
+            rgb = mix(rgb, cyc, clamp(amount * 1.4, 0.0, 1.0));
+        }
+        case 7u: {
+            let on = step(0.5, fract(tt * 0.5)) * amount;
+            rgb = mix(rgb, vec3f(luma(rgb) * 1.2), on);
+        }
+        case 8u: {
+            let band = floor(uv.y * 9.0);
+            let shift = (hash11(band * 7.0 + k + seed) - 0.5) * step(0.5, hash11(k * 3.1 + band)) * amount;
+            let hsv = rgb2hsv(rgb);
+            rgb = hsv2rgb(vec3f(fract(hsv.x + shift), clamp(hsv.y * (1.0 + 0.5 * abs(shift)), 0.0, 1.0), hsv.z));
+        }
+        default: {
+            rgb = rgb + vec3f(pow(max(1.0 - f * 2.5, 0.0), 2.0) * amount * 0.6);
+        }
+    }
+    return fx_put(rgb, c.a);
+}
+
 fn fx_dispatch_c(uv: vec2<f32>) -> vec4<f32> {
     switch u.kind {
         case 61u: { return fx_sparkles(uv); }
@@ -2219,10 +2311,529 @@ fn fx_dispatch_c(uv: vec2<f32>) -> vec4<f32> {
         case 88u: { return fx_dust(uv); }
         case 89u: { return fx_embers(uv); }
         case 90u: { return fx_mist(uv); }
+        case 91u: { return fx_shockwave(uv); }
+        case 92u: { return fx_flicker(uv); }
         default: { return sa(uv); }
     }
 }
 
+// ---- Glass, sparkle, grunge, frames, celebration, 3D layouts -------------
+
+struct Vor {
+    d1: f32,
+    d2: f32,
+    site: vec2f,
+    id: vec2f,
+}
+
+// Nearest and second-nearest feature points of a jittered grid. `wob`
+// (0 or 1) lets the points drift over time.
+fn fx_voronoi(p: vec2f, wob: f32) -> Vor {
+    let g = floor(p);
+    var best = Vor(8.0, 8.0, vec2f(0.0), vec2f(0.0));
+    for (var j = -1; j <= 1; j = j + 1) {
+        for (var i = -1; i <= 1; i = i + 1) {
+            let cell = g + vec2f(f32(i), f32(j));
+            let h = hash22(cell);
+            var site = cell + 0.15 + 0.7 * h;
+            site = site + wob * 0.18 * vec2f(sin(u.time * 0.9 + h.x * TAU), cos(u.time * 1.1 + h.y * TAU));
+            let d = length(site - p);
+            if d < best.d1 {
+                best.d2 = best.d1;
+                best.d1 = d;
+                best.site = site;
+                best.id = cell;
+            } else if d < best.d2 {
+                best.d2 = d;
+            }
+        }
+    }
+    return best;
+}
+
+// Glass family: 0 shatter (tiles pop out from an impact), 1 cracked glass,
+// 2 prism shards. p0 = (amount, speed, style, size).
+fn fx_shatter(uv: vec2f) -> vec4f {
+    let amount = u.p0.x;
+    let mode = u32(max(u.p0.z, 0.0) + 0.5);
+    let scale = mix(14.0, 4.0, u.p0.w);
+    let p = centered(uv);
+    let period = mix(4.5, 1.8, u.p0.y);
+    let cyc = floor(u.time / period);
+    let ph = fract(u.time / period);
+    let impact = (vec2f(hash11(cyc * 3.1), hash11(cyc * 5.3)) - 0.5) * vec2f(aspect() * 0.7, 0.6);
+    var wob = 0.0;
+    if mode == 2u {
+        wob = 1.0;
+    }
+    let v = fx_voronoi(p * scale, wob);
+    let h = hash22(v.id + 5.0);
+    let site_h = v.site / scale;
+    let edge = v.d2 - v.d1;
+    let line = 1.0 - smoothstep(0.0, 0.04, edge);
+    if mode == 0u {
+        let reach = length(site_h - impact);
+        let crack_r = clamp(ph / 0.22, 0.0, 1.0) * 1.3;
+        let delay = reach * 0.3;
+        let k = clamp((ph - 0.26 - delay) / 0.3, 0.0, 1.0);
+        let back = smoothstep(0.88, 1.0, ph);
+        let kk = k * (1.0 - back);
+        let s = mix(1.0, 0.5, kk * (0.5 + 0.5 * amount));
+        let ang = (h.x - 0.5) * 2.0 * kk * (0.3 + amount);
+        let src = site_h + (rot2(ang) * (p - site_h)) / s + (h - 0.5) * 0.06 * kk * amount;
+        let vs = fx_voronoi(src * scale, 0.0);
+        let inside = select(0.0, 1.0, all(vs.id == v.id));
+        let c = fx_get(fx_uv(src));
+        var rgb = c.rgb * (1.0 - 0.35 * kk);
+        let hi = (1.0 - smoothstep(0.0, 0.06, vs.d2 - vs.d1)) * kk;
+        rgb = rgb + vec3f(hi * 0.6);
+        let crack = line * smoothstep(crack_r, crack_r - 0.2, reach) * (1.0 - kk);
+        rgb = mix(rgb, vec3f(0.92, 0.97, 1.0), crack * 0.8);
+        let a = c.a * mix(1.0, inside, smoothstep(0.0, 0.05, kk)) * (1.0 - kk * 0.35);
+        return fx_put(rgb, a);
+    }
+    if mode == 1u {
+        let crack_r = mix(0.2, 1.4, smoothstep(0.0, 0.4, ph)) * (0.5 + 0.7 * amount);
+        let reach = length(site_h - impact);
+        let near = smoothstep(crack_r, crack_r * 0.6, reach);
+        let keep = step(h.x, 0.5 + amount * 0.45);
+        let off = (h - 0.5) * 0.014 * amount * near;
+        let c = fx_get(uv + off);
+        var rgb = c.rgb * (1.0 + (h.y - 0.5) * 0.14 * amount * near);
+        let crack = line * keep * near;
+        rgb = mix(rgb, vec3f(0.04, 0.05, 0.07), crack * 0.8);
+        let spark = (1.0 - smoothstep(0.0, 0.024, edge)) * keep * near;
+        rgb = rgb + vec3f(spark * 0.85);
+        return fx_put(rgb, c.a);
+    }
+    let off = (h - 0.5) * 0.03 * amount;
+    let c = fx_get(uv + off);
+    let tint = hsv2rgb(vec3f(fract(h.x + u.time * 0.04), 0.55, 1.0));
+    let shade = 0.82 + 0.3 * sin(u.time * 0.8 + h.y * TAU);
+    var rgb = c.rgb * shade;
+    rgb = mix(rgb, rgb * tint * 1.5, 0.28 * amount);
+    rgb = rgb + vec3f(line * 0.4 * amount);
+    return fx_put(rgb, c.a);
+}
+
+// Glitter: tiny grains twinkling with little four-point glints, strongest
+// where a slow band of light passes. p0 = (amount, speed, size, spread),
+// c0 = tint.
+fn fx_glitter(uv: vec2f) -> vec4f {
+    let c = fx_get(uv);
+    let p = centered(uv);
+    let t = u.time * mix(0.4, 3.0, u.p0.y);
+    let sc = mix(60.0, 18.0, u.p0.z);
+    let q = p * sc;
+    let g = floor(q);
+    var light = 0.0;
+    for (var j = -1; j <= 1; j = j + 1) {
+        for (var i = -1; i <= 1; i = i + 1) {
+            let cell = g + vec2f(f32(i), f32(j));
+            let h = hash22(cell);
+            if h.x > u.p0.x * 0.6 {
+                continue;
+            }
+            let h2 = hash22(cell * 1.7 + 9.1);
+            let pos = cell + 0.15 + 0.7 * h2;
+            let tw = pow(max(sin(t * (1.0 + 2.0 * h.y) + h2.x * TAU), 0.0), 6.0);
+            let a = q - pos;
+            let arm = exp(-abs(a.x) * 2.0) * exp(-abs(a.y) * 16.0) + exp(-abs(a.y) * 2.0) * exp(-abs(a.x) * 16.0);
+            let core = exp(-dot(a, a) * 18.0);
+            light = light + (core + 0.7 * arm) * tw * (0.5 + h.y);
+        }
+    }
+    let wide = mix(2.0, 6.0, u.p0.w);
+    let band = 0.3 + 0.7 * smoothstep(0.1, 1.0, 0.5 + 0.5 * sin((p.x * 0.8 + p.y * 0.6) * wide - t * 0.35));
+    light = light * band;
+    let tint = mix(vec3f(1.0), u.c0.rgb, 0.7);
+    return fx_put(c.rgb + tint * light * 1.9 + vec3f(max(light - 0.8, 0.0) * 0.5), c.a);
+}
+
+// Starburst: big glints that pop up at random spots, each with a number
+// of long rays. p0 = (amount, speed, size, points), c0 = tint.
+fn fx_starburst(uv: vec2f) -> vec4f {
+    let c = fx_get(uv);
+    let p = centered(uv);
+    let t = u.time * mix(0.2, 1.2, u.p0.y);
+    let sc = 3.0;
+    let q = p * sc + vec2f(1.7, 0.4);
+    let g = floor(q);
+    let n = 2.0 * (2.0 + floor(u.p0.w * 3.99));
+    var light = 0.0;
+    for (var j = -1; j <= 1; j = j + 1) {
+        for (var i = -1; i <= 1; i = i + 1) {
+            let cell = g + vec2f(f32(i), f32(j));
+            let h = hash22(cell);
+            if h.x > u.p0.x {
+                continue;
+            }
+            let h2 = hash22(cell * 1.9 + 4.2);
+            let pos = cell + 0.2 + 0.6 * h2;
+            let life = fract(t * (0.35 + 0.4 * h.y) + h2.x);
+            let pop = pow(sin(life * PI), 2.0);
+            let a = (q - pos) / sc;
+            let r = length(a);
+            let ang = atan2(a.y, a.x) + h.y * 3.0 + t * 0.25;
+            let size = mix(0.05, 0.16, u.p0.z) * (0.6 + h2.y * 0.6);
+            let rays = pow(abs(cos(ang * n * 0.5)), 30.0) * exp(-r / (size * 0.9));
+            let core = exp(-pow(r / (size * 0.16), 2.0));
+            light = light + (rays * 0.9 + core * 1.4) * pop;
+        }
+    }
+    let tint = mix(vec3f(1.0), u.c0.rgb, 0.55);
+    return fx_put(c.rgb + tint * light + vec3f(max(light - 1.0, 0.0) * 0.4), c.a);
+}
+
+// Grunge family: 0 dust and scratches, 1 grime, 2 crumpled paper.
+// p0 = (amount, speed, style, size).
+fn fx_grunge(uv: vec2f) -> vec4f {
+    let c = fx_get(uv);
+    let p = centered(uv);
+    let mode = u32(max(u.p0.z, 0.0) + 0.5);
+    let amount = u.p0.x;
+    var rgb = c.rgb;
+    if mode == 0u {
+        let k = floor(u.time * mix(4.0, 18.0, u.p0.y));
+        let sc = mix(70.0, 24.0, u.p0.w);
+        let q = p * sc;
+        let g = floor(q);
+        var white = 0.0;
+        var dark = 0.0;
+        for (var j = -1; j <= 1; j = j + 1) {
+            for (var i = -1; i <= 1; i = i + 1) {
+                let cell = g + vec2f(f32(i), f32(j));
+                let h = hash22(cell + k * 13.7);
+                if h.x > amount * 0.1 {
+                    continue;
+                }
+                let h2 = hash22(cell * 1.3 + k * 3.1);
+                let pos = cell + 0.2 + 0.6 * h2;
+                let d = length(q - pos) * (0.6 + h.y * 2.0);
+                let spot = exp(-d * d * 12.0);
+                if h.y > 0.45 {
+                    white = white + spot;
+                } else {
+                    dark = dark + spot;
+                }
+            }
+        }
+        // A thin scratch drifting down the frame now and then.
+        let sx = (hash11(k * 1.37) - 0.5) * aspect();
+        let wiggle = (fbm(vec2f(p.y * 6.0, k)) - 0.5) * 0.01;
+        let on = step(0.8 - amount * 0.35, hash11(k * 7.7));
+        let scratch = on * exp(-pow((p.x - sx - wiggle) / (fx_pxh() * 1.2), 2.0)) * smoothstep(0.2, 0.5, fbm(vec2f(p.y * 2.0, k * 0.3)));
+        rgb = rgb + vec3f(white * 0.8 + scratch * 0.7);
+        rgb = rgb * (1.0 - dark * 0.55);
+    } else if mode == 1u {
+        let sc = mix(5.0, 1.6, u.p0.w);
+        let n = fbm(p * sc + 3.0) * 0.7 + fbm(p * sc * 3.0) * 0.3;
+        let blot = smoothstep(0.42, 0.7, n);
+        let rim = smoothstep(0.35, 0.95, length(p * vec2f(0.8, 1.1)));
+        let dirt = clamp(blot * 0.8 + rim * 0.5, 0.0, 1.0) * amount;
+        rgb = rgb * (1.0 - dirt * 0.65) * mix(vec3f(1.0), vec3f(1.05, 0.95, 0.82), dirt);
+    } else {
+        let sc = mix(7.0, 3.0, u.p0.w);
+        let v = fx_voronoi(p * sc, 0.0);
+        let h = hash22(v.id + 2.0);
+        let line = 1.0 - smoothstep(0.0, 0.07, v.d2 - v.d1);
+        let fine = fbm(p * 40.0) - 0.5;
+        let shade = (h.x - 0.5) * 0.35 + line * 0.18 * (h.y - 0.3) + fine * 0.18;
+        rgb = rgb * (1.0 + shade * amount * 1.6) + vec3f(line * 0.05 * amount);
+    }
+    return fx_put(rgb, c.a);
+}
+
+// Neon frame glowing round the picture. p0 = (glow, speed, style, inset),
+// c0, c1 = colours. Styles: 0 steady, 1 chase, 2 pulse, 3 two colours.
+fn fx_neon_border(uv: vec2f) -> vec4f {
+    let c = fx_get(uv);
+    let p = centered(uv);
+    let mode = u32(max(u.p0.z, 0.0) + 0.5);
+    let inset = mix(0.015, 0.09, u.p0.w);
+    let half = vec2f(aspect() * 0.5 - inset, 0.5 - inset);
+    let r = min(half.y * 0.3, 0.08);
+    let d = abs(fx_sd_box(p, half, r));
+    let t = u.time * mix(0.25, 1.6, u.p0.y);
+    let ang = atan2(p.y, p.x) / TAU + 0.5;
+    var col = u.c0.rgb;
+    var inten = 1.0;
+    if mode == 1u {
+        let s = fract(ang - t);
+        inten = 0.12 + pow(1.0 - s, 4.0) * 1.6;
+        col = mix(u.c0.rgb, u.c1.rgb, 1.0 - s);
+    } else if mode == 2u {
+        inten = 0.55 + 0.45 * sin(t * 4.0);
+    } else if mode == 3u {
+        col = mix(u.c0.rgb, u.c1.rgb, 0.5 + 0.5 * sin(TAU * (ang * 2.0 - t)));
+    }
+    let core = exp(-pow(d / 0.0035, 2.0));
+    let glow = exp(-d / (0.012 + 0.04 * u.p0.x)) * 0.8 + exp(-d / 0.12) * 0.15;
+    var rgb = c.rgb * (1.0 - 0.12 * glow * inten);
+    rgb = rgb + col * glow * inten * (0.5 + u.p0.x) + (col * 0.35 + vec3f(0.65)) * core * inten;
+    return fx_put(rgb, c.a);
+}
+
+// Fireworks: rockets climb and burst into fading sparks with trails.
+// p0 = (amount, speed, size, trails), c0 unused: colours vary per burst.
+fn fx_fireworks(uv: vec2f) -> vec4f {
+    let c = fx_get(uv);
+    let p = centered(uv);
+    let t = u.time * mix(0.5, 1.6, u.p0.y);
+    var light = vec3f(0.0);
+    var dim = 0.0;
+    for (var b = 0; b < 3; b = b + 1) {
+        let fb = f32(b);
+        let period = 2.6 + fb * 0.45;
+        let tb = t / period + fb * 0.37;
+        let cyc = floor(tb);
+        let fr = fract(tb);
+        let cx = (hash11(cyc * 3.1 + fb * 7.7) - 0.5) * aspect() * 0.8;
+        let cy = (hash11(cyc * 5.3 + fb * 2.1) - 0.15) * 0.45;
+        let hue = hash11(cyc * 1.9 + fb * 4.4);
+        if fr < 0.18 {
+            let k = fr / 0.18;
+            let pos = vec2f(cx, mix(-0.56, cy, 1.0 - (1.0 - k) * (1.0 - k)));
+            let d = length(p - pos);
+            light = light + vec3f(1.0, 0.8, 0.5) * (exp(-d * d / 0.0002) * 1.4 + exp(-d * d / 0.003) * 0.15);
+            dim = max(dim, 0.3);
+        } else {
+            let age = (fr - 0.18) / 0.82;
+            let fade = pow(1.0 - age, 1.5);
+            dim = max(dim, fade * 0.8);
+            for (var i = 0; i < 28; i = i + 1) {
+                let fi = f32(i);
+                let hh = hash11(fi * 3.3 + cyc * 1.7 + fb * 9.1);
+                if hh > u.p0.x * 1.15 {
+                    continue;
+                }
+                let ang = (fi + 0.5 * hh) / 28.0 * TAU;
+                let dir = vec2f(cos(ang), sin(ang));
+                let spd = (0.28 + 0.2 * hash11(fi * 5.1 + cyc)) * mix(0.7, 1.5, u.p0.z);
+                let colr = hsv2rgb(vec3f(fract(hue + 0.1 * hh), 0.65, 1.0));
+                for (var k = 0; k < 3; k = k + 1) {
+                    let a = max(age - f32(k) * 0.03, 0.0);
+                    let pos = vec2f(cx, cy) + dir * spd * (1.0 - exp(-a * 3.5)) + vec2f(0.0, -0.12 * a * a);
+                    let d = p - pos;
+                    let rad = 0.008 * (1.0 + 0.6 * f32(k));
+                    let w = select(0.4 + 0.6 * u.p0.w, 1.0, k == 0);
+                    let spark = 0.7 + 0.3 * sin(age * 40.0 + fi);
+                    light = light + colr * (exp(-dot(d, d) / (rad * rad)) * 1.5 + exp(-dot(d, d) / (rad * rad * 12.0)) * 0.1) * fade * w * spark;
+                }
+            }
+        }
+    }
+    return fx_put(c.rgb * (1.0 - 0.45 * dim) + light, c.a);
+}
+
+// One tilted panel showing the picture: returns colour and coverage.
+// `centre` and `size` in height units, `yaw` in radians.
+fn fx_panel(p: vec2f, centre: vec2f, size: f32, yaw: f32) -> vec4f {
+    let dist = 2.0;
+    let q = (p - centre) / size;
+    let s = sin(yaw);
+    let cs = cos(yaw);
+    let den = dist * cs - q.x * s;
+    if den <= 0.05 {
+        return vec4f(0.0);
+    }
+    let x = q.x * dist / den;
+    let y = q.y * (dist + x * s) / dist;
+    let half = vec2f(aspect() * 0.5, 0.5);
+    let l = vec2f(x, y);
+    let inside = fx_fill(fx_sd_box(l, half, 0.0) * size);
+    if inside <= 0.0 {
+        return vec4f(0.0);
+    }
+    let col = sa(vec2f(x / aspect() + 0.5, y + 0.5));
+    let rim = smoothstep(0.012, 0.0, -fx_sd_box(l, half, 0.0));
+    return vec4f(unpremul(col).rgb + vec3f(rim * 0.35), inside);
+}
+
+// 3D layouts: the picture shown on tilted panels over a dimmed copy of
+// itself. p0 = (tilt, sway, style, gap). Styles: 0 fan of three, 1 stairs,
+// 2 floating card.
+fn fx_panels(uv: vec2f) -> vec4f {
+    let p = centered(uv);
+    let mode = u32(max(u.p0.z, 0.0) + 0.5);
+    let sway = sin(u.time * mix(0.3, 1.6, u.p0.y)) * 0.12;
+    let bg = blur_a(uv, 0.04).rgb * 0.32;
+    var rgb = bg;
+    let tilt = mix(0.25, 0.75, u.p0.x);
+    let gap = mix(0.5, 0.78, u.p0.w) * aspect() * 0.5;
+    if mode == 0u {
+        let l = fx_panel(p, vec2f(-gap, 0.0), 0.5, tilt + sway);
+        let r = fx_panel(p, vec2f(gap, 0.0), 0.5, -tilt - sway);
+        let m = fx_panel(p, vec2f(0.0, 0.0), 0.68, sway * 0.4);
+        rgb = mix(rgb, l.rgb * 0.8, l.a);
+        rgb = mix(rgb, r.rgb * 0.8, r.a);
+        rgb = mix(rgb, m.rgb, m.a);
+    } else if mode == 1u {
+        for (var i = 0; i < 3; i = i + 1) {
+            let fi = f32(2 - i);
+            let o = vec2f((fi - 1.0) * gap * 0.5, (fi - 1.0) * 0.16);
+            let pn = fx_panel(p, o, 0.42 + 0.06 * (2.0 - fi), -tilt * 0.6 + sway);
+            rgb = mix(rgb, pn.rgb * (0.7 + 0.15 * (2.0 - fi)), pn.a);
+        }
+    } else {
+        let pn = fx_panel(p, vec2f((tilt - 0.15) * 0.3, 0.02), 0.72, (tilt - 0.15) * 0.8 + sway);
+        let shadow = exp(-pow(length((p - vec2f(0.0, -0.4)) * vec2f(0.8, 3.0)), 2.0) * 3.0) * 0.4;
+        rgb = rgb * (1.0 - shadow);
+        rgb = mix(rgb, pn.rgb, pn.a);
+    }
+    return vec4f(clamp(rgb, vec3f(0.0), vec3f(1.0)), 1.0);
+}
+
+// Beat effects: the picture reacts to the tempo, so cuts to music feel
+// tight. p0 = (beats per minute, amount, decay, style). Styles: 0 zoom pump,
+// 1 shake kick, 2 colour pop, 3 blur thump, 4 strobe on alternate beats,
+// 5 hue kick, 6 squash and bounce, 7 vignette pulse.
+fn fx_beat_fx(uv: vec2f) -> vec4f {
+    let bpm = u.p0.x;
+    let amt = u.p0.y;
+    let k = pow(1.0 - fx_beat(bpm), mix(5.0, 1.5, u.p0.z));
+    let idx = floor(max(u.time, 0.0) * bpm / 60.0);
+    let style = u32(max(u.p0.w, 0.0) + 0.5);
+    let p = centered(uv);
+    switch style {
+        case 0u: {
+            return sa(fx_uv(p / (1.0 + 0.14 * amt * k)));
+        }
+        case 1u: {
+            let a = idx * 2.4;
+            let o = vec2f(cos(a), sin(a * 1.3)) * 0.035 * amt * k;
+            return sa(fx_uv(p + o));
+        }
+        case 2u: {
+            let c = fx_get(uv);
+            let hsv = rgb2hsv(c.rgb);
+            return fx_put(hsv2rgb(vec3f(hsv.x, clamp(hsv.y * (1.0 + 1.1 * amt * k), 0.0, 1.0), hsv.z * (1.0 + 0.18 * amt * k))), c.a);
+        }
+        case 3u: {
+            var acc = vec4f(0.0);
+            for (var i = 0; i < 8; i = i + 1) {
+                let f = f32(i) / 7.0;
+                acc = acc + sa(fx_uv(p * (1.0 - 0.07 * amt * k * f)));
+            }
+            return acc / 8.0;
+        }
+        case 4u: {
+            let c = fx_get(uv);
+            var g = 1.0 - 0.45 * amt * k;
+            if (u32(idx) % 2u) == 0u {
+                g = 1.0 + 0.5 * amt * k;
+            }
+            return fx_put(c.rgb * g, c.a);
+        }
+        case 5u: {
+            let c = fx_get(uv);
+            let hsv = rgb2hsv(c.rgb);
+            let shift = (0.12 + 0.05 * f32(u32(idx) % 3u)) * amt * k;
+            return fx_put(hsv2rgb(vec3f(fract(hsv.x + shift), hsv.y, hsv.z)), c.a);
+        }
+        case 6u: {
+            let sy = 1.0 - 0.1 * amt * k;
+            let sx = 1.0 + 0.05 * amt * k;
+            return sa(fx_uv(vec2f(p.x / sx, p.y / sy)));
+        }
+        default: {
+            let c = fx_get(uv);
+            let v = smoothstep(0.25, 0.95, length(p * vec2f(0.8, 1.1)));
+            return fx_put(c.rgb * (1.0 - 0.85 * amt * k * v) + vec3f(0.08 * amt * k), c.a);
+        }
+    }
+}
+// Sound-reactive effects: the picture moves with the loudness of the clip's
+// own sound (u.m0 = everything, bass, mid, treble, each 0..1).
+// p0 = (sensitivity, amount, band 0..3, style). Styles: 0 zoom, 1 shake,
+// 2 colour pop, 3 flash, 4 colour split, 5 blur, 6 glow, 7 vignette,
+// 8 hue shift, 9 tear.
+fn fx_react(uv: vec2f) -> vec4f {
+    let band = u32(clamp(u.p0.z + 0.5, 0.0, 3.0));
+    var lv = u.m0.x;
+    if band == 1u {
+        lv = u.m0.y;
+    } else if band == 2u {
+        lv = u.m0.z;
+    } else if band == 3u {
+        lv = u.m0.w;
+    }
+    let k = clamp(lv * mix(0.6, 2.2, u.p0.x), 0.0, 1.0);
+    let amt = u.p0.y;
+    let style = u32(max(u.p0.w, 0.0) + 0.5);
+    let p = centered(uv);
+    switch style {
+        case 0u: {
+            return sa(fx_uv(p / (1.0 + 0.16 * amt * k)));
+        }
+        case 1u: {
+            let a = floor(u.time * 24.0) * 2.4;
+            return sa(fx_uv(p + vec2f(cos(a), sin(a * 1.3)) * 0.04 * amt * k));
+        }
+        case 2u: {
+            let c = fx_get(uv);
+            let hsv = rgb2hsv(c.rgb);
+            return fx_put(hsv2rgb(vec3f(hsv.x, clamp(hsv.y * (1.0 + 1.2 * amt * k), 0.0, 1.0), hsv.z * (1.0 + 0.2 * amt * k))), c.a);
+        }
+        case 3u: {
+            let c = fx_get(uv);
+            return fx_put(c.rgb * (1.0 + 0.6 * amt * k) + vec3f(0.18 * amt * k), c.a);
+        }
+        case 4u: {
+            let o = p * 0.05 * amt * k;
+            let a = sa(fx_uv(p - o));
+            let g = sa(uv);
+            let b = sa(fx_uv(p + o));
+            return vec4f(a.r, g.g, b.b, g.a);
+        }
+        case 5u: {
+            var acc = vec4f(0.0);
+            for (var i = 0; i < 8; i = i + 1) {
+                let f = f32(i) / 7.0;
+                acc = acc + sa(fx_uv(p * (1.0 - 0.08 * amt * k * f)));
+            }
+            return acc / 8.0;
+        }
+        case 6u: {
+            let c = fx_get(uv);
+            var glow = vec3f(0.0);
+            for (var i = 0; i < 8; i = i + 1) {
+                let ang = f32(i) * 0.785398;
+                glow = glow + fx_get(uv + vec2f(cos(ang) / aspect(), sin(ang)) * 0.02 * (0.5 + amt)).rgb;
+            }
+            return fx_put(c.rgb + (glow / 8.0) * 0.8 * amt * k, c.a);
+        }
+        case 7u: {
+            let c = fx_get(uv);
+            let v = smoothstep(0.2, 0.95, length(p * vec2f(0.8, 1.1)));
+            return fx_put(c.rgb * (1.0 - 0.9 * amt * k * v), c.a);
+        }
+        case 8u: {
+            let c = fx_get(uv);
+            let hsv = rgb2hsv(c.rgb);
+            return fx_put(hsv2rgb(vec3f(fract(hsv.x + 0.25 * amt * k), hsv.y, hsv.z)), c.a);
+        }
+        default: {
+            let row = floor(uv.y * 24.0);
+            let shift = (hash11(row * 3.7 + floor(u.time * 20.0)) - 0.5) * 0.12 * amt * k;
+            return sa(vec2f(uv.x + shift, uv.y));
+        }
+    }
+}
+fn fx_dispatch_d(uv: vec2f) -> vec4f {
+    switch u.kind {
+        case 93u: { return fx_shatter(uv); }
+        case 94u: { return fx_glitter(uv); }
+        case 95u: { return fx_starburst(uv); }
+        case 96u: { return fx_grunge(uv); }
+        case 97u: { return fx_neon_border(uv); }
+        case 98u: { return fx_fireworks(uv); }
+        case 99u: { return fx_panels(uv); }
+        case 100u: { return fx_beat_fx(uv); }
+        case 101u: { return fx_react(uv); }
+        default: { return sa(uv); }
+    }
+}
 @fragment
 fn fs_effect(in: VOut) -> @location(0) vec4<f32> {
     let uv = in.uv;
@@ -2232,5 +2843,8 @@ fn fs_effect(in: VOut) -> @location(0) vec4<f32> {
     if u.kind <= 60u {
         return fx_dispatch_b(uv);
     }
-    return fx_dispatch_c(uv);
+    if u.kind <= 92u {
+        return fx_dispatch_c(uv);
+    }
+    return fx_dispatch_d(uv);
 }

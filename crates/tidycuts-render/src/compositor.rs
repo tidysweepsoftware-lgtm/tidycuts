@@ -1303,6 +1303,7 @@ impl Compositor {
             kind: fx.shader,
             flags: pass,
             p: fx.params,
+            m0: fx.audio,
             c0: fx.colors[0],
             c1: fx.colors[1],
             ..Default::default()
@@ -1612,6 +1613,7 @@ impl Compositor {
                 ],
                 colors: [[0.0; 4]; 2],
                 time: 0.0,
+                audio: [0.0; 4],
             };
             for pass in 0..2 {
                 let out = self.work.get(&self.r.device, w, h, WORK_FORMAT, false);

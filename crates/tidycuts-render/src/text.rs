@@ -6,7 +6,9 @@
 //! glows and decorations, so a title never jumps or gets clipped while its
 //! decorations animate in or its characters type on.
 
+mod cards;
 mod layout;
+mod modern;
 mod raster;
 mod styles;
 
@@ -56,6 +58,19 @@ pub static STYLES: &[(&str, &str)] = &[
     ("editorial", "Editorial"),
     ("gold", "Gold Foil"),
     ("quote", "Quote"),
+    // Lit with the distance-field kit (see `modern`).
+    ("gold_bevel", "Bevelled Metal"),
+    ("neon_tube", "Neon Tube"),
+    ("pop_3d", "Pop 3D"),
+    ("glass_soft", "Soft Glass"),
+    // Cards that build themselves in stages (see `cards`).
+    ("card_gradient", "Gradient Card"),
+    ("card_bar", "News Bar"),
+    ("card_pill", "Pill Label"),
+    // Quiet and clean.
+    ("clean_soft", "Clean"),
+    ("clean_gradient", "Clean Gradient"),
+    ("clean_glow", "Soft Glow"),
 ];
 
 /// Largest picture side in pixels; bigger titles are rendered at a lower
@@ -181,6 +196,12 @@ fn render_at(
     let primary = Face::load(&spec.font);
     let fallback = Face::fallback_for(&spec.font);
     let style = spec.style.as_str();
+    let card = cards::is_card(style);
+    // A card's text arrives after the card has opened, softly, letter by letter.
+    let letters = match letters {
+        None if card => Some((LetterKind::Soft, cards::text_progress(reveal))),
+        other => other,
+    };
     let conf = |i: usize, n: usize| styles::line_conf(style, i, n);
     let params = Params {
         em,
@@ -207,6 +228,7 @@ fn render_at(
         0.0
     };
     let fx_full = styles::effects(spec, em, 1.0);
+    let modern = modern::look_for(spec, em);
     let hollow = match fx_full.fill {
         Fill::Hollow(w) => w,
         _ => 0.0,
@@ -237,11 +259,18 @@ fn render_at(
         if let Some(x) = &fx_full.extrude {
             all = layout::union(all, moved(ink, x.len, x.len));
         }
+        if let Some(look) = &modern {
+            all = layout::union(all, grow(ink, look.reach() + 2.0));
+        }
     }
     if spec.background {
         if let Some(bg) = background_path(&prep) {
             all = layout::union(all, bg.bounds());
         }
+    }
+    if card {
+        let rc = cards::rect(style, em, prep.lay.width, prep.lay.height);
+        all = layout::union(all, grow(rc, cards::margin(em)));
     }
     for op in styles::decorations(spec, &prep.lay, em, 1.0) {
         let b = op.path.bounds();
@@ -253,6 +282,22 @@ fn render_at(
             },
         );
     }
+    if let Some((kind, _)) = letters {
+        // Letters travel before they settle: spread wide for tracking, up
+        // from below for rise, a little oversize for pop.
+        let side = if kind == LetterKind::Tracking {
+            0.95 * block.width() * 0.5
+        } else {
+            0.0
+        };
+        all = Rect::from_ltrb(
+            all.left() - side - 0.15 * em,
+            all.top() - 0.15 * em,
+            all.right() + side + 0.15 * em,
+            all.bottom() + 0.8 * em,
+        )
+        .unwrap_or(all);
+    }
     let (cx, cy) = (block.width() * 0.5, block.height() * 0.5);
     let half_w = (cx - all.left()).max(all.right() - cx) + 2.0;
     let half_h = (cy - all.top()).max(all.bottom() - cy) + 2.0;
@@ -262,6 +307,43 @@ fn render_at(
     }
     let (iw, ih) = (iw.max(1.0) as u32, ih.max(1.0) as u32);
     let origin = Transform::from_translate(iw as f32 * 0.5 - cx, ih as f32 * 0.5 - cy);
+
+    if let Some(look) = &modern {
+        // The text drawn plain white, once with every letter at full
+        // strength (the shape) and once with the letter animation's fades.
+        let mut plain = spec.clone();
+        plain.style = "plain".into();
+        plain.color = [1.0; 4];
+        plain.outline_color[3] = 0.0;
+        plain.shadow = 0.0;
+        plain.background = false;
+        let fx = styles::effects(&plain, em, reveal);
+        let mut opaque = Pixmap::new(iw, ih).unwrap();
+        draw_text(
+            &mut opaque,
+            &plain,
+            &prep,
+            &fx,
+            visible,
+            letters,
+            origin,
+            true,
+        );
+        let faded = letters.map(|_| {
+            let mut px = Pixmap::new(iw, ih).unwrap();
+            draw_text(&mut px, &plain, &prep, &fx, visible, letters, origin, false);
+            px
+        });
+        return Ok(TitleRaster {
+            size: [iw as f32 / scale, ih as f32 / scale],
+            image: RgbaImage {
+                width: iw,
+                height: ih,
+                pixels: modern::paint(&opaque, faded.as_ref(), look),
+                premultiplied: true,
+            },
+        });
+    }
 
     let mut canvas = Pixmap::new(iw, ih).unwrap();
     if spec.background {
@@ -275,6 +357,17 @@ fn render_at(
             );
         }
     }
+    if card {
+        cards::draw(
+            &mut canvas,
+            origin,
+            spec,
+            em,
+            prep.lay.width,
+            prep.lay.height,
+            reveal,
+        );
+    }
     let ops = styles::decorations(spec, &prep.lay, em, reveal);
     draw_ops(&mut canvas, &ops, false, origin);
 
@@ -285,10 +378,19 @@ fn render_at(
         || fx.glitch.is_some();
     if layered {
         let mut text = Pixmap::new(iw, ih).unwrap();
-        draw_text(&mut text, spec, &prep, &fx, visible, letters, origin);
+        draw_text(&mut text, spec, &prep, &fx, visible, letters, origin, false);
         compose_effects(&mut canvas, &text, spec, &prep, &fx, origin);
     } else {
-        draw_text(&mut canvas, spec, &prep, &fx, visible, letters, origin);
+        draw_text(
+            &mut canvas,
+            spec,
+            &prep,
+            &fx,
+            visible,
+            letters,
+            origin,
+            false,
+        );
     }
     draw_ops(&mut canvas, &ops, true, origin);
 
@@ -430,6 +532,13 @@ fn glyph_fx(
             g.scale = ease_back(q).max(0.0);
             g.alpha = (q * 3.0).min(1.0);
         }
+        LetterKind::Soft | LetterKind::WordsSoft => {
+            // Gentle: a short drift up, a hair of growth, a smooth fade.
+            let e = ease_out(q);
+            g.dy = (1.0 - e) * 0.14 * em;
+            g.scale = 0.94 + 0.06 * e;
+            g.alpha = e;
+        }
         LetterKind::Tracking => {
             let e = ease_out(p);
             g.dx = (centre.0 - line_cx) * (1.0 - e) * 0.9;
@@ -449,6 +558,7 @@ fn glyph_fx(
 /// Draws the letters: outline under the fill, then the fill (thickened by
 /// a same-color stroke when bold). With a letter animation every glyph is
 /// drawn on its own, moved and faded by its place in the animation.
+#[allow(clippy::too_many_arguments)]
 fn draw_text(
     px: &mut Pixmap,
     spec: &TitleSpec,
@@ -457,6 +567,7 @@ fn draw_text(
     visible: Option<usize>,
     letters: Option<(LetterKind, f32)>,
     origin: Transform,
+    full_strength: bool,
 ) {
     let paths = line_paths(&p.lay, visible);
     let (w, h) = (px.width(), px.height());
@@ -494,7 +605,10 @@ fn draw_text(
     let words = word_of_chars(&spec.text);
     let by_word = matches!(
         letters,
-        Some((LetterKind::WordsPop | LetterKind::Karaoke, _))
+        Some((
+            LetterKind::WordsPop | LetterKind::WordsSoft | LetterKind::Karaoke,
+            _
+        ))
     );
     let units_of: Vec<usize> = if letters.is_some() {
         let mut rank = 0usize;
@@ -559,6 +673,9 @@ fn draw_text(
             if alpha <= 0.003 {
                 continue;
             }
+            // Letters that are fading in still count at full strength when
+            // only the shape is wanted.
+            let alpha = if full_strength { 1.0 } else { alpha };
             // The glyph's own move, about its centre, on top of the title's.
             let t = match gfx {
                 Some(g) => {

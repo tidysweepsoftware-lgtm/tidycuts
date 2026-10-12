@@ -129,6 +129,7 @@ fn blur_and_pixelate_area_touch_only_their_area() {
             params,
             colors,
             time: 0.0,
+            audio: [0.0; 4],
         });
         let img = render(&mut comp, layer);
         let mut same_outside = true;
@@ -155,5 +156,140 @@ fn blur_and_pixelate_area_touch_only_their_area() {
             changed_inside > 20,
             "{id} left its area alone ({changed_inside})"
         );
+    }
+}
+
+/// A colourful, busy picture for effects that need something to work on.
+fn busy() -> Layer {
+    let mut pixels = Vec::new();
+    for y in 0..H {
+        for x in 0..W {
+            let r = (x * 255 / W) as u8;
+            let g = (y * 255 / H) as u8;
+            let b = (((x / 4 + y / 4) % 2) * 160 + 40) as u8;
+            pixels.extend_from_slice(&[r, g, b, 255]);
+        }
+    }
+    Layer::full(
+        Source::Pixels(tidycuts_render::Pixels::Rgba(std::sync::Arc::new(
+            tidycuts_render::RgbaImage {
+                width: W,
+                height: H,
+                pixels,
+                premultiplied: true,
+            },
+        ))),
+        [W as f32, H as f32],
+    )
+}
+
+/// The flicker, glass, sparkle, grunge, neon frame, fireworks and 3D layout
+/// effects: each one draws with its default settings, keeps the picture
+/// opaque and changes it at some moment.
+#[test]
+fn every_newer_effect_draws_and_changes_the_picture() {
+    use tidycuts_render::catalog::effects::{self, EffectKind};
+    let Ok(renderer) = tidycuts_render::gpu::headless() else {
+        eprintln!("no GPU here; skipping");
+        return;
+    };
+    let mut comp = Compositor::new(renderer);
+    let plain = render(&mut comp, busy());
+    let mut checked = 0;
+    for def in effects::EFFECTS {
+        let EffectKind::Shader { id, passes } = def.kind else {
+            continue;
+        };
+        if id < 92 {
+            continue;
+        }
+        let (params, colors) = effects::pack(def, |k| effects::default_value(def, k));
+        let mut changed = false;
+        for time in [0.5, 1.3, 2.1, 3.2] {
+            let mut layer = busy();
+            layer.effects.push(tidycuts_render::Fx {
+                shader: id,
+                passes,
+                params,
+                colors,
+                time,
+                audio: [0.8; 4],
+            });
+            let img = render(&mut comp, layer);
+            assert!(
+                img.as_chunks::<4>().0.iter().all(|p| p[3] == 255),
+                "{} lost its opacity at {time}s",
+                def.id
+            );
+            changed |= img != plain;
+        }
+        assert!(changed, "{} never changed the picture", def.id);
+        checked += 1;
+    }
+    assert!(checked >= 50, "only {checked} newer effects found");
+}
+
+/// Another busy picture, to tell the two sides of a transition apart.
+fn busy_other() -> Layer {
+    let mut pixels = Vec::new();
+    for y in 0..H {
+        for x in 0..W {
+            let r = (255 - y * 255 / H) as u8;
+            let g = ((x * 7) % 200 + 30) as u8;
+            let b = (x * 255 / W) as u8;
+            pixels.extend_from_slice(&[r, g, b, 255]);
+        }
+    }
+    Layer::full(
+        Source::Pixels(tidycuts_render::Pixels::Rgba(std::sync::Arc::new(
+            tidycuts_render::RgbaImage {
+                width: W,
+                height: H,
+                pixels,
+                premultiplied: true,
+            },
+        ))),
+        [W as f32, H as f32],
+    )
+}
+
+/// Every transition shows exactly the outgoing picture at the start and
+/// exactly the incoming one at the end, and something else in between.
+#[test]
+fn every_transition_starts_on_a_and_ends_on_b() {
+    use tidycuts_render::catalog::transitions::TRANSITIONS;
+    use tidycuts_render::TransitionItem;
+    let Ok(renderer) = tidycuts_render::gpu::headless() else {
+        eprintln!("no GPU here; skipping");
+        return;
+    };
+    let mut comp = Compositor::new(renderer);
+    let a = render(&mut comp, busy());
+    let b = render(&mut comp, busy_other());
+    let max_diff = |x: &[u8], y: &[u8]| x.iter().zip(y).map(|(p, q)| p.abs_diff(*q)).max().unwrap();
+    for def in TRANSITIONS {
+        let at = |comp: &mut Compositor, progress: f32| {
+            let target = comp.make_target(W, H, wgpu::TextureFormat::Rgba8Unorm, true);
+            let frame = Frame {
+                canvas: [W as f32, H as f32],
+                background: [0.0, 0.0, 0.0, 1.0],
+                items: vec![Item::Transition(TransitionItem {
+                    from: Some(busy()),
+                    to: Some(busy_other()),
+                    kind: def.shader,
+                    progress,
+                    params: [def.params, [0.0; 4], [0.0; 4], [0.0; 4]],
+                    color: def.color,
+                    time: progress * def.duration,
+                })],
+            };
+            comp.render_to_cpu(&frame, &target)
+        };
+        assert!(max_diff(&at(&mut comp, 0.0), &a) <= 2, "{} start", def.id);
+        assert!(max_diff(&at(&mut comp, 1.0), &b) <= 2, "{} end", def.id);
+        let moved = [0.3, 0.5, 0.7]
+            .iter()
+            .any(|p| max_diff(&at(&mut comp, *p), &a) > 8 && max_diff(&at(&mut comp, *p), &b) > 8);
+        assert!(moved, "{} never shows anything in between", def.id);
     }
 }

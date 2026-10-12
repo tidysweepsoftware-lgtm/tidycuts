@@ -9,8 +9,8 @@ with pictures, and [shortcuts.md](shortcuts.md) lists the keyboard shortcuts.
 **Layout.** Library top left, player top right, timeline along the bottom.
 Double-click a clip and its properties open in the library's place.
 
-**Library.** Media, Audio (9 music tracks and 61 sound effects), Titles (68),
-Transitions (73), Effects (105), Filters (96), Stickers (117), Layouts (16 split
+**Library.** Media, Audio (9 music tracks and 61 sound effects), Titles (160),
+Transitions (130), Effects (148), Filters (96), Stickers (224), Layouts (16 split
 screens and 7 audio visualizers) and Templates (21). Every tile shows the real result on a sample picture; filters
 show before and after; hovering plays a short loop; templates show their length
 and clip count; the search box covers every tab; each tab starts with Trending
@@ -48,7 +48,7 @@ choose an oval, a rectangle or a rounded shape, move and resize it, soften the
 edge, or blur everything except the shape. Every setting can be keyframed, so the
 shape can follow a moving face.
 
-**Modern titles and captions.** Titles (68) include glass cards, editorial and
+**Modern titles and captions.** Titles (160) include glass cards, editorial and
 poster styles, and animated captions: word pop, letters rising or popping in,
 tracking in, flicker on, karaoke highlighting and more. Letter and word
 animations are drawn by TidyCuts, one glyph at a time.

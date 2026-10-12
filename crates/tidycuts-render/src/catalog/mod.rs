@@ -9,9 +9,11 @@
 pub mod animations;
 pub mod effects;
 pub mod filters;
+pub mod legacy;
 pub mod stickers;
 pub mod titles;
 pub mod transitions;
+pub mod uses;
 
 /// How a parameter is shown in the properties panel.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -112,16 +114,20 @@ pub enum Sample {
     Landscape,
     Sunset,
     Portrait,
-    /// A swan on the grass.
+    /// A duck on the water.
     Wildlife,
-    /// Young swans on the grass.
+    /// A green mountain valley.
     Meadow,
-    /// A cat looking into the camera.
+    /// A black cat on a sofa.
     Pet,
-    /// A cat resting.
+    /// A sleeping cat.
     Nap,
     /// A dark night scene, where light and particle overlays read clearly.
     Night,
+    /// A city by day, for city and business looks.
+    City,
+    /// A latte being poured, for food looks.
+    Food,
 }
 
 /// Finds a catalog item by id in any static list with an `id` field.

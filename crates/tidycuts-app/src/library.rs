@@ -11,7 +11,9 @@ use egui::{
 };
 use egui_phosphor::regular as ph;
 use tidycuts_core::{MediaId, MediaKind, Time};
-use tidycuts_render::catalog::{categories, effects, filters, stickers, titles, transitions};
+use tidycuts_render::catalog::{
+    categories, effects, filters, legacy, stickers, titles, transitions, uses,
+};
 use tidycuts_sounds::{SoundDef, SoundKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +98,10 @@ pub struct LibraryState {
     pub search: String,
     /// Selected category per tab; `None` shows everything.
     pub category: Option<&'static str>,
+    /// Selected use (an index into uses::NAMES); None shows every use.
+    pub use_case: Option<usize>,
+    /// Also list the old designs (hidden by default).
+    pub show_old: bool,
     pub tile_size: f32,
     /// Tiles per row on the catalog tabs.
     pub columns: u32,
@@ -107,6 +113,8 @@ impl Default for LibraryState {
             tab: LibraryTab::Media,
             search: String::new(),
             category: None,
+            use_case: None,
+            show_old: false,
             tile_size: 149.0,
             columns: 3,
         }
@@ -119,6 +127,18 @@ pub struct CatalogItem {
     pub name: &'static str,
     pub category: &'static str,
     pub drag: LibraryDrag,
+    /// The uses it suits, as a bit set (see uses).
+    pub uses: u16,
+    /// An old design, hidden unless show_old is on.
+    pub legacy: bool,
+}
+
+/// The entries a tab lists: the old designs only when asked for.
+fn shown(tab: LibraryTab, show_old: bool) -> Vec<CatalogItem> {
+    catalog(tab)
+        .into_iter()
+        .filter(|i| show_old || !i.legacy)
+        .collect()
 }
 
 /// The entries of a catalog tab, in catalog order.
@@ -130,6 +150,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Title(t.id),
+                uses: uses::title(t.id),
+                legacy: legacy::title(t.id, t.category),
             })
             .collect(),
         LibraryTab::Transitions => transitions::TRANSITIONS
@@ -138,6 +160,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Transition(t.id),
+                uses: uses::transition(t.id),
+                legacy: legacy::transition(t.id, t.category),
             })
             .collect(),
         LibraryTab::Effects => effects::EFFECTS
@@ -146,6 +170,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Effect(t.id),
+                uses: uses::effect(t.id),
+                legacy: legacy::effect(t.id, t.category),
             })
             .collect(),
         LibraryTab::Filters => filters::FILTERS
@@ -154,6 +180,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Effect(t.id),
+                uses: uses::filter(t.category),
+                legacy: legacy::filter(t.id),
             })
             .collect(),
         LibraryTab::Stickers => stickers::STICKERS
@@ -162,6 +190,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Sticker(t.id),
+                uses: uses::sticker(t.id, t.category),
+                legacy: legacy::sticker(t.category),
             })
             .collect(),
         LibraryTab::Layouts => tidycuts_core::LAYOUTS
@@ -170,6 +200,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: l.name,
                 category: l.category,
                 drag: LibraryDrag::Layout(l.id),
+                uses: uses::ALL,
+                legacy: false,
             })
             .chain(
                 tidycuts_core::VISUALIZER_STYLES
@@ -178,6 +210,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                         name,
                         category: "Audio visualizers",
                         drag: LibraryDrag::Visualizer(id),
+                        uses: uses::ALL,
+                        legacy: false,
                     }),
             )
             .collect(),
@@ -188,6 +222,8 @@ pub fn catalog(tab: LibraryTab) -> Vec<CatalogItem> {
                 name: t.name,
                 category: t.category,
                 drag: LibraryDrag::Template(i),
+                uses: uses::ALL,
+                legacy: false,
             })
             .collect(),
         LibraryTab::Media | LibraryTab::Audio => Vec::new(),
@@ -398,7 +434,7 @@ fn sidebar(app: &mut TidyCutsApp, ui: &mut egui::Ui, rect: Rect) {
     let cats: Vec<&'static str> = match tab {
         LibraryTab::Media => vec!["Project Media"],
         LibraryTab::Audio => Vec::new(),
-        _ => categories(&catalog(tab), |c| c.category),
+        _ => categories(&shown(tab, app.library.show_old), |c| c.category),
     };
     let entry = |ui: &mut egui::Ui, icon: Option<&str>, label: &str, on: bool| -> bool {
         let avail = ui.available_width();
@@ -1224,44 +1260,44 @@ const CATALOG_TABS: [LibraryTab; 7] = [
 fn trending(tab: LibraryTab) -> &'static [&'static str] {
     match tab {
         LibraryTab::Titles => &[
-            "Karaoke",
-            "Glass Card",
-            "Poster Stack",
-            "Word Pop",
-            "Gold Foil",
-            "Subscribe",
+            "Name Card Blue",
+            "Subscribe Red",
+            "Clean White",
+            "Gradient Sky",
+            "Neon New Drop",
+            "Caption Pop Yellow",
         ],
         LibraryTab::Transitions => &[
-            "Whip Pan",
-            "Zoom Punch",
-            "Light Wipe",
-            "Film Roll Up",
-            "Flash",
-            "Shadow Fade",
+            "Circles Burst",
+            "Colour Wave Right",
+            "Gold Sweep",
+            "Speed Rush",
+            "Frosted Pane Left",
+            "Card Left",
         ],
         LibraryTab::Effects => &[
-            "Halation",
-            "Pro-Mist",
-            "Beat Flash",
-            "Speed Lines",
-            "Prism",
-            "Camcorder",
+            "Shockwave",
+            "Shatter",
+            "Neon Chase",
+            "Fireworks",
+            "Triple Fan",
+            "Negative Flicker",
         ],
         LibraryTab::Filters => &[
-            "Soft Neutral",
-            "Hazy Pastel",
-            "Creator Clean",
-            "Matte Calm",
-            "Teal & Orange",
-            "Golden Hour",
+            "Noir Rain",
+            "Honey Glow",
+            "Cine 35 Teal",
+            "Cyber Pink",
+            "Romance Glow",
+            "Sunset Skyline",
         ],
         LibraryTab::Stickers => &[
-            "Subscribe",
-            "Link in Bio",
-            "Like Button",
-            "Swipe Up",
-            "Crown",
-            "Rocket",
+            "Subscribe Red",
+            "Link Violet",
+            "Like Red",
+            "Swipe Up White",
+            "Starburst Pop",
+            "Confetti Rain",
         ],
         LibraryTab::Layouts => &[
             "Side by Side",
@@ -1291,7 +1327,14 @@ struct Section {
 
 /// Whether `item` of `tab` matches every word of the search.
 fn item_matches(tab: LibraryTab, item: &CatalogItem, query: &str) -> bool {
-    let hay = format!("{} {} {}", item.name, item.category, tab.label()).to_lowercase();
+    let hay = format!(
+        "{} {} {} {}",
+        item.name,
+        item.category,
+        tab.label(),
+        uses::words(item.uses)
+    )
+    .to_lowercase();
     query.split_whitespace().all(|w| hay.contains(w))
 }
 
@@ -1299,6 +1342,10 @@ fn item_matches(tab: LibraryTab, item: &CatalogItem, query: &str) -> bool {
 /// Trending followed by each category.
 fn sections(app: &TidyCutsApp, tab: LibraryTab) -> Vec<Section> {
     let query = app.library.search.trim().to_lowercase();
+    let show_old = app.library.show_old;
+    let use_ok = |i: &CatalogItem| {
+        (show_old || !i.legacy) && app.library.use_case.is_none_or(|u| uses::has(i.uses, u))
+    };
     if !query.is_empty() {
         return CATALOG_TABS
             .into_iter()
@@ -1306,14 +1353,14 @@ fn sections(app: &TidyCutsApp, tab: LibraryTab) -> Vec<Section> {
                 title: t.label().to_string(),
                 items: catalog(t)
                     .into_iter()
-                    .filter(|i| item_matches(t, i, &query))
+                    .filter(|i| item_matches(t, i, &query) && use_ok(i))
                     .map(|i| (t, i))
                     .collect(),
             })
             .filter(|s| !s.items.is_empty())
             .collect();
     }
-    let all = catalog(tab);
+    let all: Vec<CatalogItem> = catalog(tab).into_iter().filter(|i| use_ok(i)).collect();
     if let Some(cat) = app.library.category {
         return vec![Section {
             title: cat.to_string(),
@@ -1349,8 +1396,43 @@ fn sections(app: &TidyCutsApp, tab: LibraryTab) -> Vec<Section> {
     out
 }
 
+/// The row of use chips under the search box: Any, Business, Gaming...
+fn use_row(app: &mut TidyCutsApp, ui: &mut egui::Ui) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(6.0, 6.0);
+        if widgets::pill_button(ui, None, "Any use", app.library.use_case.is_none()).clicked() {
+            app.library.use_case = None;
+        }
+        let old = app.library.show_old;
+        if widgets::pill_button(ui, None, "Old designs", old)
+            .on_hover_text("Also list the older designs. They still work in saved projects.")
+            .clicked()
+        {
+            app.library.show_old = !old;
+            app.library.category = None;
+        }
+        for (i, name) in uses::NAMES.iter().enumerate() {
+            let on = app.library.use_case == Some(i);
+            if widgets::pill_button(ui, None, name, on).clicked() {
+                app.library.use_case = if on { None } else { Some(i) };
+            }
+        }
+    });
+    ui.add_space(8.0);
+}
+
 fn catalog_tab(app: &mut TidyCutsApp, ui: &mut egui::Ui, tab: LibraryTab) {
     search_row(app, ui, false, true);
+    if matches!(
+        tab,
+        LibraryTab::Titles
+            | LibraryTab::Transitions
+            | LibraryTab::Effects
+            | LibraryTab::Filters
+            | LibraryTab::Stickers
+    ) {
+        use_row(app, ui);
+    }
     let searching = !app.library.search.trim().is_empty();
     let sections = sections(app, tab);
     if !searching {
@@ -1525,6 +1607,10 @@ mod tests {
             let all = catalog(tab);
             for (i, n) in names.iter().enumerate() {
                 assert!(all.iter().any(|c| c.name == *n), "{tab:?}: no {n}");
+                assert!(
+                    all.iter().any(|c| c.name == *n && !c.legacy),
+                    "{tab:?}: {n} is an old design"
+                );
                 assert!(!names[..i].contains(n), "{tab:?}: {n} twice");
             }
         }

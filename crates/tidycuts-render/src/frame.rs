@@ -204,6 +204,9 @@ pub struct Fx {
     pub colors: [[f32; 4]; 2],
     /// Seconds, for animated effects.
     pub time: f32,
+    /// How loud the clip's sound is right now, for sound-reactive effects:
+    /// (everything, bass, mid, treble), each 0..1. Zero for other effects.
+    pub audio: [f32; 4],
 }
 
 /// Clean-up applied before color and effects.

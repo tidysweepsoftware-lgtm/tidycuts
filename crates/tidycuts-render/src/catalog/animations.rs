@@ -15,6 +15,10 @@ pub enum LetterKind {
     Tracking,
     /// A highlight moves through the words.
     Karaoke,
+    /// Letters drift up a little and fade in smoothly, one after another.
+    Soft,
+    /// The same, a word at a time.
+    WordsSoft,
 }
 
 /// A change to a clip's placement for one moment. The neutral value is
@@ -164,6 +168,16 @@ pub static ANIMATIONS: &[AnimDef] = &[
     AnimDef {
         id: "karaoke",
         name: "Karaoke Highlight",
+        titles_only: true,
+    },
+    AnimDef {
+        id: "letters_soft",
+        name: "Soft Letters",
+        titles_only: true,
+    },
+    AnimDef {
+        id: "words_soft",
+        name: "Soft Words",
         titles_only: true,
     },
 ];
@@ -334,11 +348,14 @@ pub fn evaluate(id: &str, phase: Phase, progress: f32, canvas: [f32; 2]) -> Moti
             };
             m.opacity = flicker(q);
         }
-        "letters_rise" | "letters_pop" | "words_pop" | "tracking" => {
+        "letters_rise" | "letters_pop" | "words_pop" | "tracking" | "letters_soft"
+        | "words_soft" => {
             let kind = match id {
                 "letters_rise" => LetterKind::Rise,
                 "letters_pop" => LetterKind::Pop,
                 "words_pop" => LetterKind::WordsPop,
+                "letters_soft" => LetterKind::Soft,
+                "words_soft" => LetterKind::WordsSoft,
                 _ => LetterKind::Tracking,
             };
             m.letters = Some((

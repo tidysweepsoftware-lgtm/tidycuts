@@ -27,11 +27,33 @@ including in the videos people make with TidyCuts.
 | Font | Licence |
 | --- | --- |
 | Abril Fatface, Anton, Bangers, Bebas Neue, Black Ops One, DM Serif Display, Great Vibes, Inter, Lobster, Monoton, Pacifico, Poppins, Press Start 2P, Righteous, VT323 | SIL Open Font License 1.1 (`OFL-inter.txt`, `OFL-poppins.txt` and each font's own notice at <https://fonts.google.com>) |
+| Allura, Archivo Black, Audiowide, Big Shoulders Display, Bowlby One, Bricolage Grotesque, Bungee, Bungee Inline, Caveat, Chakra Petch, Chango, Cinzel, Cinzel Decorative, Courgette, Damion, Dela Gothic One, Faster One, Gloock, IBM Plex Mono, JetBrains Mono, Kalam, Kaushan Script, Krona One, Lilita One, Limelight, Londrina Solid, Major Mono Display, Marck Script, Michroma, Montserrat, Mr Dafoe, Nanum Brush Script, Norican, Oswald, Outfit, Parisienne, Passion One, Playball, Poiret One, Quantico, Rajdhani, Rubik Glitch, Russo One, Sacramento, Sora, Space Grotesk, Space Mono, Staatliches, Stalinist One, Teko, Titan One, Unbounded | SIL Open Font License 1.1 (each family's own text, `OFL-<family>.txt`) |
 | Permanent Marker, Special Elite | Apache License 2.0 (`APACHE-LICENSE.txt`) |
 
 Inter has had its private-use characters removed so the icon font shows (see
 `crates/tidycuts-render/fonts/README.md`).
 
+## Sample photographs
+
+The pictures used for library thumbnails and previews (`crates/tidycuts-render/assets/photos/`)
+come from [StockSnap.io](https://stocksnap.io), where every picture is released under the
+Creative Commons CC0 public-domain dedication: free for any use, no credit required. They are
+listed here anyway, with the page each came from. The files are the 960-pixel-wide versions.
+
+| File | Picture | Source page |
+| --- | --- | --- |
+| `forest.jpg` | Low sun through trees beside a lake | <https://stocksnap.io/photo/sun-trees-I5UDEKJLAC> |
+| `lake.jpg` | Orange sunset over a lake | <https://stocksnap.io/photo/sunset-lake-8UOSAA3FRO> |
+| `bird.jpg` | A duck on blue water | <https://stocksnap.io/photo/bird-wildlife-76KYFFGJIG> |
+| `mountain.jpg` | A green mountain valley with flowers | <https://stocksnap.io/photo/nature-landscape-T3OJ9T8POI> |
+| `cat.jpg` | A black cat on a sofa | <https://stocksnap.io/photo/cat-blackcat-PONWAT2C3P> |
+| `cat_nap.jpg` | A cat asleep on a bed | <https://stocksnap.io/photo/sleeping-cat-HCLLPLCTG9> |
+| `city_night.jpg` | A city skyline at night | <https://stocksnap.io/photo/night-dark-H01L2BILXC> |
+| `city.jpg` | A bridge and skyline by day | <https://stocksnap.io/photo/city-bridge-NKZOS5SNK6> |
+| `food.jpg` | A latte being poured | <https://stocksnap.io/photo/barista-latte-DTKOOFPC06> |
+
+The portrait cut-out (`assets/portrait.png`) is a photograph of the app's author, used with
+their permission.
 ## Icons
 
 The icons come from [Phosphor Icons](https://phosphoricons.com), MIT licence,

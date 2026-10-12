@@ -294,6 +294,14 @@ impl<'a> Pen<'a> {
         self.stroke_with(p, body, &round(width));
     }
 
+    /// Lets the bright parts of everything drawn so far spill light around
+    /// them: they are blurred `radius` units wide and added back on top.
+    /// Only pixels brighter than `threshold` (0..1) glow. Call it after the
+    /// drawing and before [`Pen::shadow`], if there is one.
+    pub fn bloom(&mut self, strength: f32, radius: f32, threshold: f32) {
+        bloom_pass(self.pm, strength, radius, threshold);
+    }
+
     /// Finishes the sticker with a soft drop shadow under everything drawn.
     pub fn shadow(self, strength: f32) {
         soft_shadow(self.pm, strength, true);
@@ -765,6 +773,82 @@ fn soft_shadow(pm: &mut Pixmap, strength: f32, drop: bool) {
             let a = data[i] as f32 / 255.0;
             // Black shadow under premultiplied color: only alpha changes.
             data[i] = ((a + s * (1.0 - a)) * 255.0 + 0.5).min(255.0) as u8;
+        }
+    }
+}
+
+/// Bloom: the bright pixels of `pm` are blurred on a coarse grid and added
+/// back as light, so glowing things glow into the space around them. The
+/// result stays a valid premultiplied image (color never exceeds alpha).
+fn bloom_pass(pm: &mut Pixmap, strength: f32, radius: f32, threshold: f32) {
+    let (w, h) = (pm.width() as usize, pm.height() as usize);
+    let u = h as f32;
+    let blur = (u * radius).max(2.0);
+    let f = ((blur / 3.0) as usize).max(1);
+    let (gw, gh) = (w.div_ceil(f) + 2, h.div_ceil(f) + 2);
+    let mut grids = [
+        vec![0f32; gw * gh],
+        vec![0f32; gw * gh],
+        vec![0f32; gw * gh],
+    ];
+    {
+        let data = pm.data();
+        for y in 0..h {
+            let row = (y / f + 1) * gw;
+            for x in 0..w {
+                let i = (y * w + x) * 4;
+                let a = data[i + 3] as f32;
+                if a < 1.0 {
+                    continue;
+                }
+                let rgb = [data[i] as f32, data[i + 1] as f32, data[i + 2] as f32];
+                // Only what is bright enough to glow feeds the bloom.
+                let peak = rgb[0].max(rgb[1]).max(rgb[2]) / a;
+                let gain = smoothstep(threshold.min(0.98), 1.0, peak);
+                for k in 0..3 {
+                    grids[k][row + x / f + 1] += rgb[k] * gain;
+                }
+            }
+        }
+    }
+    let norm = 1.0 / (255.0 * (f * f) as f32);
+    let r = ((blur / f as f32).round() as usize).max(1);
+    let mut tmp = Vec::new();
+    for g in grids.iter_mut() {
+        g.iter_mut().for_each(|v| *v *= norm);
+        for _ in 0..3 {
+            box_blur(g, gh, gw, 1, gw, r, &mut tmp);
+            box_blur(g, gw, gh, gw, 1, r, &mut tmp);
+        }
+    }
+    let data = pm.data_mut();
+    let fs = f as f32;
+    for y in 0..h {
+        let sy = ((y as f32 + 0.5) / fs + 0.5).clamp(0.0, (gh - 1) as f32);
+        let (y0, ty) = (sy.floor() as usize, sy.fract());
+        let y1 = (y0 + 1).min(gh - 1);
+        for x in 0..w {
+            let sx = ((x as f32 + 0.5) / fs + 0.5).clamp(0.0, (gw - 1) as f32);
+            let (x0, tx) = (sx.floor() as usize, sx.fract());
+            let x1 = (x0 + 1).min(gw - 1);
+            let mut add = [0f32; 3];
+            for k in 0..3 {
+                let g = &grids[k];
+                let top = g[y0 * gw + x0] * (1.0 - tx) + g[y0 * gw + x1] * tx;
+                let bot = g[y1 * gw + x0] * (1.0 - tx) + g[y1 * gw + x1] * tx;
+                add[k] = (top * (1.0 - ty) + bot * ty) * strength;
+            }
+            let peak = add[0].max(add[1]).max(add[2]);
+            if peak <= 1e-4 {
+                continue;
+            }
+            let i = (y * w + x) * 4;
+            let a = (data[i + 3] as f32 / 255.0 + peak).min(1.0);
+            for k in 0..3 {
+                let v = (data[i + k] as f32 / 255.0 + add[k]).min(a);
+                data[i + k] = (v * 255.0 + 0.5) as u8;
+            }
+            data[i + 3] = (a * 255.0 + 0.5) as u8;
         }
     }
 }

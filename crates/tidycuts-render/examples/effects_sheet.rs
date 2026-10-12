@@ -109,7 +109,7 @@ struct Ctx {
     /// Picture to use instead of each entry's own sample.
     force: Option<Sample>,
     canvas: [f32; 2],
-    pics: [Arc<RgbaImage>; 9],
+    pics: [Arc<RgbaImage>; 11],
     board: Arc<RgbaImage>,
 }
 
@@ -131,6 +131,8 @@ impl Ctx {
             Sample::Night => self.pics[6].clone(),
             Sample::Pet => self.pics[7].clone(),
             Sample::Nap => self.pics[8].clone(),
+            Sample::City => self.pics[9].clone(),
+            Sample::Food => self.pics[10].clone(),
         }
     }
 
@@ -148,6 +150,7 @@ impl Ctx {
                     params,
                     colors,
                     time: 1.3,
+                    audio: [0.0; 4],
                 });
                 items.push(Item::Layer(self.layer(self.board.clone())));
                 items.push(Item::Layer(l));
@@ -174,6 +177,7 @@ impl Ctx {
                             params: [[m.blur, 0.0, 0.0, 0.0], [0.0; 4], [0.0; 4], [0.0; 4]],
                             colors: [[0.0; 4]; 2],
                             time: t,
+                            audio: [0.0; 4],
                         });
                     }
                     items.push(Item::Layer(l));
@@ -228,6 +232,8 @@ fn main() {
             Arc::new(sample::night(640, 360)),
             Arc::new(sample::pet(640, 360)),
             Arc::new(sample::nap(640, 360)),
+            Arc::new(sample::city(640, 360)),
+            Arc::new(sample::food(640, 360)),
         ],
         board: Arc::new(checker()),
     };
@@ -245,6 +251,8 @@ fn main() {
             Arc::new(sample::night(1280, 720)),
             Arc::new(sample::pet(1280, 720)),
             Arc::new(sample::nap(1280, 720)),
+            Arc::new(sample::city(1280, 720)),
+            Arc::new(sample::food(1280, 720)),
         ];
         ctx.pics = pics;
         let (bw, bh) = (960, 540);

@@ -373,12 +373,18 @@ impl Planner<'_> {
             match def.kind {
                 effects::EffectKind::Shader { id, passes } => {
                     let (params, colors) = effects::pack(def, value);
+                    let audio = if id == effects::AUDIO_SHADER {
+                        self.levels.reactive(self.project, c, c.start + lt)
+                    } else {
+                        [0.0; 4]
+                    };
                     fx.push(Fx {
                         shader: id,
                         passes,
                         params,
                         colors,
                         time,
+                        audio,
                     });
                 }
                 effects::EffectKind::Motion => {
@@ -602,6 +608,7 @@ impl Planner<'_> {
                             params,
                             colors,
                             time,
+                            audio: [0.0; 4],
                         },
                     );
                 }
@@ -614,6 +621,7 @@ impl Planner<'_> {
                 params: [[motion.blur, 0.0, 0.0, 0.0], [0.0; 4], [0.0; 4], [0.0; 4]],
                 colors: [[0.0; 4]; 2],
                 time,
+                audio: [0.0; 4],
             });
         }
 
@@ -648,6 +656,7 @@ impl Planner<'_> {
                     ],
                     colors: [[0.0; 4]; 2],
                     time,
+                    audio: [0.0; 4],
                 });
             }
         }
@@ -754,6 +763,7 @@ impl Planner<'_> {
                     ],
                     colors: [[0.0; 4]; 2],
                     time,
+                    audio: [0.0; 4],
                 });
                 out.push(Item::Layer(l));
             }

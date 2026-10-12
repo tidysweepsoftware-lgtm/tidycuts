@@ -3399,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-app"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "eframe",
  "egui",
@@ -3421,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3431,7 +3431,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "crossbeam-channel",
  "log",
@@ -3449,7 +3449,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-mcp"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "log",
  "serde",
@@ -3459,7 +3459,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-media"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "cpal",
  "crossbeam-channel",
@@ -3472,7 +3472,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-render"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "ab_glyph",
  "bytemuck",
@@ -3489,7 +3489,7 @@ dependencies = [
 
 [[package]]
 name = "tidycuts-sounds"
-version = "1.0.0"
+version = "1.1.0"
 
 [[package]]
 name = "tiff"
