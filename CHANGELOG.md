@@ -2,6 +2,28 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.1 (a faster Image Generator and smoother editing)
+
+**Image Thumbnail Generator**
+- The image program stays loaded between presses (the first press starts drawing in about a
+  second instead of 15-25), starts loading as soon as the window opens, and is freed after 5
+  idle minutes or when TidyCuts closes. Pictures are drawn one after another (four at once took
+  98 s, one by one about 20 s).
+- Pictures appear one by one as each is drawn, while the next is being drawn; Stop keeps the
+  ones already finished. Resizing and decoding no longer freeze the window.
+- Sizes 720p, 1080p, 2K and 4K (the larger ones are drawn at half size and refined; a real
+  3840 x 2160 picture takes about 2 minutes), and a choice of 1 to 4 pictures. Click a picture
+  to see it large. Save opens on the Desktop. The Drawing bar shows real progress and no longer
+  forces the window to redraw every frame. Stop really ends a 2K or 4K picture.
+
+**Editing and export**
+- Export with a loudness target checks the loudness about ten times faster (0.84 s instead of
+  8.8 s per pass on ten minutes of sound; up to four passes before), and stays within 0.3 LU of
+  the target.
+- Several large videos imported at once no longer all make their smooth-editing copy at the
+  same time (two at once), so the editor stays responsive.
+- A video started ahead of a cut is no longer closed one frame before it is needed.
+
 ## 1.3.0 (a gentler Normalize and the Image Thumbnail Generator)
 
 **Sound**

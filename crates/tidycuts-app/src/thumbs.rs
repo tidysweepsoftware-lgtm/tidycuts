@@ -37,6 +37,8 @@ enum Job {
     Wave {
         path: PathBuf,
         stream: u32,
+        /// Where peaks are kept between sessions.
+        cache: Option<PathBuf>,
     },
 }
 
@@ -59,6 +61,8 @@ pub struct Thumbs {
     posters: HashMap<PathBuf, Option<TextureHandle>>,
     strip: HashMap<StripKey, (TextureHandle, u64)>,
     waves: HashMap<(PathBuf, u32), Arc<Vec<f32>>>,
+    /// The cache folder, where waveform peaks are kept (set once the settings are known).
+    pub cache_dir: Option<PathBuf>,
     pending: HashSet<String>,
     tick: u64,
 }
@@ -120,8 +124,17 @@ fn worker(q: Arc<Queue>, tx: Sender<Done>, ctx: egui::Context) {
                 key.clone(),
                 cache.image(key.frame).map(|i| shrink(&i, STRIP_H)),
             ),
-            Job::Wave { path, stream } => {
-                let peaks = tidycuts_engine::decode::waveform(&path, stream, PEAKS_PER_SEC);
+            Job::Wave {
+                path,
+                stream,
+                cache,
+            } => {
+                let peaks = match cache {
+                    Some(dir) => {
+                        tidycuts_engine::decode::waveform_cached(&dir, &path, stream, PEAKS_PER_SEC)
+                    }
+                    None => tidycuts_engine::decode::waveform(&path, stream, PEAKS_PER_SEC),
+                };
                 Done::Wave((path, stream), peaks)
             }
         };
@@ -156,6 +169,7 @@ impl Thumbs {
             posters: HashMap::new(),
             strip: HashMap::new(),
             waves: HashMap::new(),
+            cache_dir: None,
             pending: HashSet::new(),
             tick: 0,
         }
@@ -304,6 +318,7 @@ impl Thumbs {
                 Job::Wave {
                     path: media.path.clone(),
                     stream,
+                    cache: self.cache_dir.clone(),
                 },
             );
         }

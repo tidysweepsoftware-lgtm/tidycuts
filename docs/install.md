@@ -5,10 +5,10 @@ Download the file for your computer from the
 
 | File | For |
 | --- | --- |
-| `TidyCuts-Setup-1.3.0.exe` | Windows 10 and 11, 64-bit. The installer. Best for most people. |
-| `TidyCuts-1.3.0-windows-portable.zip` | Windows. No installing: unzip it anywhere and run `TidyCuts.exe`. |
-| `TidyCuts-1.3.0-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. |
-| `TidyCuts-1.3.0-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
+| `TidyCuts-Setup-1.3.1.exe` | Windows 10 and 11, 64-bit. The installer. Best for most people. |
+| `TidyCuts-1.3.1-windows-portable.zip` | Windows. No installing: unzip it anywhere and run `TidyCuts.exe`. |
+| `TidyCuts-1.3.1-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. |
+| `TidyCuts-1.3.1-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
 | `SHA256SUMS.txt` | A checksum for every file, to check that a download is the one we built. |
 
 FFmpeg, which TidyCuts uses to read and write video files, is included in every
@@ -22,7 +22,7 @@ Intel Macs aren't supported yet.
 
 ### The installer
 
-1. Run `TidyCuts-Setup-1.3.0.exe`.
+1. Run `TidyCuts-Setup-1.3.1.exe`.
 2. If Windows shows **"Windows protected your PC"**, choose **More info**, then
    **Run anyway**. (See "Why do I get a warning?" below.)
 3. Follow the steps. By default TidyCuts installs just for you and doesn't need an
@@ -35,7 +35,7 @@ settings are not deleted.
 
 ### The portable version
 
-1. Unzip `TidyCuts-1.3.0-windows-portable.zip` to any folder (a USB stick works).
+1. Unzip `TidyCuts-1.3.1-windows-portable.zip` to any folder (a USB stick works).
 2. Open the `TidyCuts` folder and run `TidyCuts.exe`.
 
 Keep the `ffmpeg` folder next to `TidyCuts.exe`. To remove it, delete the folder.
@@ -46,7 +46,7 @@ folder.
 
 ## Mac
 
-1. Open `TidyCuts-1.3.0-macos.dmg`.
+1. Open `TidyCuts-1.3.1-macos.dmg`.
 2. Drag **TidyCuts** onto the **Applications** folder in the same window.
 3. Open **TidyCuts** from Applications (or Launchpad).
 
@@ -85,12 +85,12 @@ and sometimes reacts badly to it. Remove the mark:
 
 #### The disk image itself won't open
 
-Download `TidyCuts-1.3.0-macos.zip` instead, double-click it to unzip, drag
+Download `TidyCuts-1.3.1-macos.zip` instead, double-click it to unzip, drag
 **TidyCuts** into Applications, and follow the steps above. Or remove the mark from
 the disk image first, in Terminal:
 
 ```
-xattr -d com.apple.quarantine ~/Downloads/TidyCuts-1.3.0-macos.dmg
+xattr -d com.apple.quarantine ~/Downloads/TidyCuts-1.3.1-macos.dmg
 ```
 
 #### Still stuck?
@@ -119,11 +119,11 @@ warning is only about who published it. Here is what you can check yourself:
 
   Windows (PowerShell):
   ```
-  Get-FileHash .\TidyCuts-Setup-1.3.0.exe -Algorithm SHA256
+  Get-FileHash .\TidyCuts-Setup-1.3.1.exe -Algorithm SHA256
   ```
   Mac (Terminal):
   ```
-  shasum -a 256 ~/Downloads/TidyCuts-1.3.0-macos.dmg
+  shasum -a 256 ~/Downloads/TidyCuts-1.3.1-macos.dmg
   ```
   The long code that appears should match the line for that file.
 

@@ -166,6 +166,8 @@ struct Dsp {
     inv: Arc<dyn ComplexToReal<f32>>,
     /// 1 / sum of squared window over the frames that touch each sample.
     envelope: Vec<f32>,
+    /// The dither noise for one window, made once: it is the same for every window.
+    noise: Vec<f32>,
 }
 
 impl Dsp {
@@ -181,7 +183,10 @@ impl Dsp {
         for e in &mut envelope {
             *e = if *e > 1e-11 { 1.0 / *e } else { 0.0 };
         }
+        let mut gauss = Gauss(0x9E37_79B9_7F4A_7C15);
+        let noise: Vec<f32> = (0..FRAMES * WIN_LEN).map(|_| gauss.next()).collect();
         Dsp {
+            noise,
             window,
             mel: mel_filters(),
             fbank_fft: planner.plan_fft_forward(2048),
@@ -201,7 +206,6 @@ impl Dsp {
     /// (the model was trained with 1.0).
     fn features_with(&self, x: &[f32], dither: f32) -> Vec<f32> {
         debug_assert_eq!(x.len(), WINDOW);
-        let mut gauss = Gauss(0x9E37_79B9_7F4A_7C15);
         let mut fbank = vec![0.0f32; FRAMES * MELS];
         let mut frame = vec![0.0f32; 2048];
         let mut spec = vec![Complex32::new(0.0, 0.0); 1025];
@@ -209,7 +213,8 @@ impl Dsp {
         for t in 0..FRAMES {
             let src = &x[t * HOP..t * HOP + WIN_LEN];
             // Dither: a whisper of noise so silence has a floor.
-            let mut f: Vec<f32> = src.iter().map(|v| v + dither * gauss.next()).collect();
+            let noise = &self.noise[t * WIN_LEN..(t + 1) * WIN_LEN];
+            let mut f: Vec<f32> = src.iter().zip(noise).map(|(v, g)| v + dither * g).collect();
             let mean = f.iter().sum::<f32>() / WIN_LEN as f32;
             f.iter_mut().for_each(|v| *v -= mean);
             // Pre-emphasis (the first sample is mirrored).

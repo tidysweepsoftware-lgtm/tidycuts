@@ -245,6 +245,7 @@ impl TidyCutsApp {
         };
         app.sync_proxy_pref();
         app.tidy_previews_at_start();
+        app.thumbs.cache_dir = Some(app.prefs.cache_dir());
         app.mcp.sync(&app.prefs, &cc.egui_ctx);
         // A project file (e.g. double-clicked) or media passed on the command line.
         match open.as_slice() {

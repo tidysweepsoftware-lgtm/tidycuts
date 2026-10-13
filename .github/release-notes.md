@@ -1,7 +1,15 @@
 ## TidyCuts __VERSION__
 
-A gentler Normalize and a thumbnail generator that draws from your idea, in the free and
-open-source video editor for Windows and Mac:
+A faster Image Generator and smoother editing, in the free and open-source video editor
+for Windows and Mac:
+
+- **Image Generator**: pictures appear one by one as they are drawn, the models stay loaded
+  between presses, sizes from 720p to 4K, 1 to 4 pictures, a large preview, and Save opens on
+  the Desktop.
+- **Faster export** with a loudness target (about ten times faster checking), only two
+  smooth-editing copies are made at once, and smoother plain cuts.
+
+From version 1.3.0:
 
 - **Image Thumbnail Generator**: type an idea and get four pictures to choose from, drawn on
   your computer for free. Add inspiration pictures to copy a look, draw a person in, or place a

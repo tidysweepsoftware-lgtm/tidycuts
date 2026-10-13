@@ -177,6 +177,58 @@ fn run_loudnorm(path: &Path, pre: Option<&str>) -> Result<Report, String> {
     parse_report(&String::from_utf8_lossy(&out.stderr))
 }
 
+/// The integrated loudness of a file after the optional filters `pre`, with
+/// ffmpeg's `ebur128` filter: the same BS.1770 measurement as `loudnorm`
+/// without its slow true-peak and dynamic processing (about ten times faster;
+/// measured 0.84 s against 8.8 s for ten minutes of sound).
+fn run_ebur128(path: &Path, pre: Option<&str>) -> Result<f64, String> {
+    let tools = tidycuts_media::Tools::get().map_err(|e| e.to_string())?;
+    let mut cmd = std::process::Command::new(&tools.ffmpeg);
+    cmd.args(["-hide_banner", "-nostdin", "-i"]).arg(path);
+    cmd.args([
+        "-af",
+        &format!(
+            "{}ebur128=framelog=quiet",
+            pre.map(|p| format!("{p},")).unwrap_or_default()
+        ),
+        "-f",
+        "null",
+        "-",
+    ]);
+    cmd.stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let out = cmd.output().map_err(|e| e.to_string())?;
+    parse_ebur128(&String::from_utf8_lossy(&out.stderr))
+}
+
+/// Reads the integrated loudness from the summary `ebur128` prints at the end.
+pub fn parse_ebur128(text: &str) -> Result<f64, String> {
+    let summary = text
+        .rfind("Integrated loudness")
+        .ok_or("no loudness summary")?;
+    let line = text[summary..]
+        .lines()
+        .find(|l| l.trim_start().starts_with("I:"))
+        .ok_or("no integrated loudness")?;
+    let value = line
+        .trim_start()
+        .trim_start_matches("I:")
+        .split_whitespace()
+        .next()
+        .ok_or("no integrated loudness")?;
+    // Silence is printed as -inf.
+    Ok(value
+        .parse::<f64>()
+        .ok()
+        .filter(|v| v.is_finite())
+        .unwrap_or(-120.0))
+}
+
 /// Reads the numbers loudnorm prints at the end.
 pub fn parse_report(text: &str) -> Result<Report, String> {
     let start = text.rfind('{').ok_or("no loudness numbers")?;
@@ -210,18 +262,18 @@ fn gain_and_limit(gain_db: f64) -> String {
 /// distorting; measuring through that chain corrects the difference the
 /// limiter makes. One steady gain: no pumping.
 pub fn normalize_filter(path: &Path, target: f64) -> Result<String, String> {
-    let r = run_loudnorm(path, None)?;
-    if r.integrated < -69.0 {
+    let integrated = run_ebur128(path, None)?;
+    if integrated < -69.0 {
         // Silence: nothing to do.
         return Ok("anull".into());
     }
-    let mut gain = target - r.integrated;
+    let mut gain = target - integrated;
     // The limiter changes the loudness a little (a lot when a few loud peaks
     // carry most of it), so measure through the chain and correct, a few times.
     for _ in 0..3 {
-        let after = run_loudnorm(path, Some(&gain_and_limit(gain)))?;
-        let err = target - after.integrated;
-        if err.abs() < 0.3 || after.integrated < -69.0 {
+        let after = run_ebur128(path, Some(&gain_and_limit(gain)))?;
+        let err = target - after;
+        if err.abs() < 0.3 || after < -69.0 {
             break;
         }
         gain += err.clamp(-12.0, 12.0);
@@ -295,6 +347,29 @@ mod tests {
         m.push(&tone(1000.0, 0.01, 0.6, 48_000));
         // Now only quiet sound is inside the window.
         assert!(m.lufs().unwrap() < -35.0);
+    }
+
+    #[test]
+    fn it_reads_the_summary_ebur128_prints() {
+        let text = "[Parsed_ebur128_0 @ 0x1] Summary:
+
+  Integrated loudness:
+    I:         -23.4 LUFS
+    Threshold: -33.7 LUFS
+
+  Loudness range:
+    LRA:         5.1 LU
+";
+        assert_eq!(parse_ebur128(text), Ok(-23.4));
+        assert_eq!(
+            parse_ebur128(
+                "  Integrated loudness:
+    I:         -inf LUFS
+"
+            ),
+            Ok(-120.0)
+        );
+        assert!(parse_ebur128("nothing").is_err());
     }
 
     #[test]

@@ -49,12 +49,29 @@ pub struct Playback {
     meters: Arc<Meters>,
     /// Shown last; kept so a repaint without a new frame redraws it.
     last_time: Time,
+    /// The video and audio threads, so closing can wait for them (briefly).
+    threads: Vec<thread::JoinHandle<()>>,
 }
 
 impl Drop for Playback {
     fn drop(&mut self) {
         self.shared.quit.store(true, Ordering::SeqCst);
         self.shared.playing.store(false, Ordering::SeqCst);
+        // Let the threads finish what they are doing (so none is still using the
+        // graphics card or the sound device when the window is gone), but never
+        // hold up closing for more than a moment.
+        let threads = std::mem::take(&mut self.threads);
+        if threads.is_empty() {
+            return;
+        }
+        let (done, wait) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            for t in threads {
+                let _ = t.join();
+            }
+            let _ = done.send(());
+        });
+        let _ = wait.recv_timeout(std::time::Duration::from_millis(600));
     }
 }
 
@@ -83,10 +100,11 @@ impl Playback {
             previews: Mutex::new(Arc::new(Vec::new())),
         });
         let (tx, rx) = bounded::<(u64, PreparedFrame)>(4);
+        let mut threads = Vec::new();
         {
             let shared = shared.clone();
             let queue = queue.clone();
-            thread::Builder::new()
+            let t = thread::Builder::new()
                 .name("tidycuts-play-video".into())
                 .spawn(move || {
                     video_thread(
@@ -101,15 +119,17 @@ impl Playback {
                     )
                 })
                 .expect("spawn video thread");
+            threads.push(t);
         }
         let meters = Arc::new(Meters::default());
         if let Some(q) = queue.clone() {
             let shared = shared.clone();
             let meters = meters.clone();
-            thread::Builder::new()
+            let t = thread::Builder::new()
                 .name("tidycuts-play-audio".into())
                 .spawn(move || audio_thread(shared, q, sample_rate, channels, meters))
                 .expect("spawn audio thread");
+            threads.push(t);
         }
         Playback {
             shared,
@@ -120,6 +140,7 @@ impl Playback {
             sample_rate,
             meters,
             last_time: Time::ZERO,
+            threads,
         }
     }
 

@@ -361,7 +361,13 @@ impl StreamFrames {
 
     /// Starts a clip's decoder ahead of time so its first frame is ready.
     pub fn prefetch(&mut self, clip: &Clip, media: &MediaItem, source_secs: f64, size: (u32, u32)) {
-        if media.kind != MediaKind::Video || self.streams.contains_key(&clip.id) {
+        if media.kind != MediaKind::Video {
+            return;
+        }
+        // Already running: count it as used now, or it would be closed one frame
+        // before the cut it was started for.
+        if let Some((_, used)) = self.streams.get_mut(&clip.id) {
+            *used = self.tick;
             return;
         }
         let params = self.params(clip, media, size);

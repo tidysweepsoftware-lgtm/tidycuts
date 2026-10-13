@@ -1,11 +1,11 @@
 ; Inno Setup script for the TidyCuts installer.
 ; Built by .github/workflows/release.yml after the program and FFmpeg have
 ; been put together in dist\TidyCuts:
-;   iscc /DAppVersion=1.3.0 packaging\windows\tidycuts.iss
+;   iscc /DAppVersion=1.3.1 packaging\windows\tidycuts.iss
 ; The installer is written to dist\TidyCuts-Setup-<version>.exe.
 
 #ifndef AppVersion
-  #define AppVersion "1.3.0"
+  #define AppVersion "1.3.1"
 #endif
 
 [Setup]

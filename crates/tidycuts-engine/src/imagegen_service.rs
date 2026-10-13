@@ -428,6 +428,11 @@ pub fn generate(
         let bytes = loop {
             if cancel.load(Ordering::Relaxed) {
                 let _ = call("POST", &format!("{base}/jobs/{id}/cancel"), None, 10);
+                if passes == 2 {
+                    // A refined (2K or 4K) picture runs for minutes and the program does not
+                    // stop a picture in the middle: end it, and it starts again next time.
+                    shutdown();
+                }
                 return Err(Error::Cancelled);
             }
             std::thread::sleep(Duration::from_millis(150));

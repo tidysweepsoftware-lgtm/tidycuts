@@ -19,6 +19,43 @@ pub struct Job {
 
 pub type Done = (MediaId, Result<PathBuf, String>);
 
+/// How many proxies are made at the same time. FFmpeg already uses every core for one,
+/// so more at once only makes each of them (and the editor) slower.
+const AT_ONCE: usize = 2;
+
+static RUNNING: std::sync::Mutex<usize> = std::sync::Mutex::new(0);
+static FREED: std::sync::Condvar = std::sync::Condvar::new();
+
+/// A place in the queue; given back when dropped.
+struct Slot;
+
+impl Slot {
+    /// Waits for a free place (stays stoppable), or `None` if stopped while waiting.
+    fn wait(cancel: &AtomicBool) -> Option<Slot> {
+        let mut n = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            if cancel.load(Ordering::Relaxed) {
+                return None;
+            }
+            if *n < AT_ONCE {
+                *n += 1;
+                return Some(Slot);
+            }
+            n = FREED
+                .wait_timeout(n, std::time::Duration::from_millis(250))
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        *RUNNING.lock().unwrap_or_else(|e| e.into_inner()) -= 1;
+        FREED.notify_one();
+    }
+}
+
 impl TidyCutsApp {
     /// Follows the preference for using proxies.
     pub fn sync_proxy_pref(&self) {
@@ -78,6 +115,11 @@ impl TidyCutsApp {
         );
         std::thread::spawn(move || {
             let ctx2 = ctx.clone();
+            let Some(_slot) = Slot::wait(&cancel) else {
+                let _ = tx.send((id, Err("Cancelled.".into())));
+                ctx.request_repaint();
+                return;
+            };
             let result = proxy::make_proxy(tools, &media, &out, &cancel, |p| {
                 progress.store((p * 1000.0) as u32, Ordering::Relaxed);
                 ctx2.request_repaint();

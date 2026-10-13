@@ -551,3 +551,93 @@ pub fn waveform(path: &Path, stream: u32, per_sec: u32) -> Vec<f32> {
     }
     out
 }
+
+/// Where the peaks of a file's audio stream are kept: named by the file's path, size
+/// and change time, so an edited file gets new peaks.
+fn peaks_file(cache_dir: &Path, path: &Path, stream: u32, per_sec: u32) -> PathBuf {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    (stream, per_sec).hash(&mut h);
+    if let Ok(m) = std::fs::metadata(path) {
+        m.len().hash(&mut h);
+        if let Ok(t) = m.modified() {
+            t.hash(&mut h);
+        }
+    }
+    cache_dir
+        .join("waveforms")
+        .join(format!("{:016x}.peaks", h.finish()))
+}
+
+const PEAKS_MAGIC: &[u8; 4] = b"TCW1";
+
+fn read_peaks(file: &Path) -> Option<Vec<f32>> {
+    let bytes = std::fs::read(file).ok()?;
+    let body = bytes.strip_prefix(PEAKS_MAGIC)?;
+    if body.len() % 4 != 0 {
+        return None;
+    }
+    Some(
+        body.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|b| f32::from_le_bytes(*b))
+            .collect(),
+    )
+}
+
+fn write_peaks(file: &Path, peaks: &[f32]) {
+    let Some(dir) = file.parent() else { return };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    let mut bytes = Vec::with_capacity(4 + peaks.len() * 4);
+    bytes.extend_from_slice(PEAKS_MAGIC);
+    for p in peaks {
+        bytes.extend_from_slice(&p.to_le_bytes());
+    }
+    // Written aside and renamed, so a half-written file is never read.
+    let tmp = file.with_extension("tmp");
+    if std::fs::write(&tmp, bytes).is_ok() {
+        let _ = std::fs::rename(&tmp, file);
+    }
+}
+
+/// Like [`waveform`], but the peaks are kept in `cache_dir`: the whole sound of a
+/// file is decoded once, not every time the program starts.
+pub fn waveform_cached(cache_dir: &Path, path: &Path, stream: u32, per_sec: u32) -> Vec<f32> {
+    let file = peaks_file(cache_dir, path, stream, per_sec);
+    if let Some(p) = read_peaks(&file).filter(|p| !p.is_empty()) {
+        return p;
+    }
+    let peaks = waveform(path, stream, per_sec);
+    if !peaks.is_empty() {
+        write_peaks(&file, &peaks);
+    }
+    peaks
+}
+
+#[cfg(test)]
+mod peaks_tests {
+    use super::*;
+
+    #[test]
+    fn peaks_survive_a_round_trip_and_bad_files_are_ignored() {
+        let dir = std::env::temp_dir().join(format!("tidycuts-peaks-{}", std::process::id()));
+        let file = dir.join("waveforms").join("x.peaks");
+        let peaks = vec![0.0, 0.25, 1.0, 0.5];
+        write_peaks(&file, &peaks);
+        assert_eq!(read_peaks(&file), Some(peaks));
+        std::fs::write(&file, b"nope").unwrap();
+        assert_eq!(read_peaks(&file), None);
+        std::fs::write(&file, b"TCW1abc").unwrap();
+        assert_eq!(read_peaks(&file), None);
+        assert_eq!(read_peaks(&dir.join("missing")), None);
+        // Different streams and rates are different files.
+        let p = Path::new("/a.mp4");
+        assert_ne!(peaks_file(&dir, p, 0, 100), peaks_file(&dir, p, 1, 100));
+        assert_ne!(peaks_file(&dir, p, 0, 100), peaks_file(&dir, p, 0, 50));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
