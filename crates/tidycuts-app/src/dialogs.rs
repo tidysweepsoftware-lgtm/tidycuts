@@ -17,6 +17,7 @@ mod import_size;
 mod loudness;
 mod preferences;
 mod project_settings;
+mod proxy;
 mod silence;
 pub mod sizes;
 mod thumbnail;
@@ -51,6 +52,7 @@ pub struct DialogState {
     loudness: Option<loudness::LoudnessDialog>,
     voiceover: Option<voiceover::VoiceoverDialog>,
     thumbnail: Option<thumbnail::ThumbnailDialog>,
+    proxy: Option<proxy::ProxyDialog>,
     imagegen: Option<imagegen::ImageGenDialog>,
     /// Settings of the last export, so a failed one can be retried.
     last_export: Option<export::ExportDialog>,
@@ -113,6 +115,11 @@ impl DialogState {
         self.tour = Some(tour::TourDialog::default());
     }
 
+    /// Asks whether to make a smooth-editing copy of a video.
+    pub fn ask_proxy(&mut self, media: MediaId) {
+        self.proxy = Some(proxy::ProxyDialog::new(media));
+    }
+
     pub fn open_about(&mut self) {
         self.about = Some(about::AboutDialog);
     }
@@ -133,6 +140,7 @@ impl DialogState {
             || self.loudness.is_some()
             || self.voiceover.is_some()
             || self.thumbnail.is_some()
+            || self.proxy.is_some()
             || self.imagegen.is_some()
     }
 }
@@ -194,6 +202,7 @@ pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     run!(loudness);
     run!(voiceover);
     run!(thumbnail);
+    run!(proxy);
     run!(imagegen);
     // The import question goes on top of everything else.
     run!(import_size);

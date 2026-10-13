@@ -148,8 +148,10 @@ pub struct Prefs {
     pub hardware_encode: bool,
     /// Edit with small proxy copies of big videos when there are some.
     pub use_proxies: bool,
-    /// Make a proxy for every large video as it is imported.
+    /// Make a proxy of a large video without asking (used when `proxy_ask` is off).
     pub auto_proxies: bool,
+    /// Ask whether to make a proxy when a large video is put on the timeline.
+    pub proxy_ask: bool,
     pub preview_quality: PreviewQuality,
     /// Where scrub frames are kept; `None` uses the system cache folder.
     pub cache_dir: Option<PathBuf>,
@@ -201,6 +203,7 @@ impl Default for Prefs {
             hardware_encode: true,
             use_proxies: true,
             auto_proxies: true,
+            proxy_ask: true,
             preview_quality: PreviewQuality::Auto,
             cache_dir: None,
             cache_limit_gb: 20.0,

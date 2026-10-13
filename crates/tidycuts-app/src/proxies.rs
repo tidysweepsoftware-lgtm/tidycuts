@@ -78,8 +78,27 @@ impl TidyCutsApp {
         }
         let (id, wants) = (item.id, item.wants_proxy());
         self.project.add_media(item);
-        if wants && self.prefs.use_proxies && self.prefs.auto_proxies {
+        if wants && self.prefs.use_proxies && self.prefs.auto_proxies && !self.prefs.proxy_ask {
             self.make_proxy(id);
+        }
+    }
+
+    /// When a video is put on the timeline: asks whether to make its proxy (or makes it
+    /// without asking, or leaves it, as the settings say). Asked once per video.
+    pub fn check_media_proxy(&mut self, m: &tidycuts_core::MediaItem) {
+        if m.kind != tidycuts_core::MediaKind::Video
+            || !m.wants_proxy()
+            || !self.prefs.use_proxies
+            || m.proxy.as_ref().is_some_and(|p| p.is_file())
+            || self.proxy_jobs.contains_key(&m.id)
+            || !self.asked_proxy.insert(m.id)
+        {
+            return;
+        }
+        if self.prefs.proxy_ask {
+            self.dialogs.ask_proxy(m.id);
+        } else if self.prefs.auto_proxies {
+            self.make_proxy(m.id);
         }
     }
 

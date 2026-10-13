@@ -1,7 +1,12 @@
 ## TidyCuts __VERSION__
 
-A faster Image Generator and smoother editing, in the free and open-source video editor
-for Windows and Mac:
+A question before making proxies, plus a faster Image Generator, in the free and open-source
+video editor for Windows and Mac:
+
+- **Proxies are optional**: a large video put on the timeline now asks whether to make a
+  smooth-editing copy, and you can remember the answer.
+
+From version 1.3.1:
 
 - **Image Generator**: pictures appear one by one as they are drawn, the models stay loaded
   between presses, sizes from 720p to 4K, 1 to 4 pictures, a large preview, and Save opens on

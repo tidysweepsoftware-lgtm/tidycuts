@@ -111,6 +111,7 @@ pub struct TidyCutsApp {
     pub importing: usize,
     /// Media already asked about (keep 4K or downscale), so we ask once.
     asked_size: HashSet<MediaId>,
+    pub(crate) asked_proxy: HashSet<MediaId>,
 
     toasts: Vec<Toast>,
     pub ffmpeg_error: Option<String>,
@@ -211,6 +212,7 @@ impl TidyCutsApp {
             import_done: HashMap::new(),
             importing: 0,
             asked_size: HashSet::new(),
+            asked_proxy: HashSet::new(),
             toasts: Vec::new(),
             ffmpeg_error: Tools::get().err().map(|e| e.to_string()),
             export_job: None,
@@ -974,6 +976,7 @@ impl TidyCutsApp {
         match placed {
             Some(c) => {
                 self.selection = vec![c];
+                self.check_media_proxy(&m);
                 if first_video {
                     self.check_media_size(&m);
                 }
@@ -1531,6 +1534,7 @@ impl TidyCutsApp {
         self.timeline = TimelineState::default();
         self.timeline.snap = snap;
         self.asked_size.clear();
+        self.asked_proxy.clear();
         self.revision += 1;
         if let Some(e) = &self.engine {
             for m in &self.project.media {

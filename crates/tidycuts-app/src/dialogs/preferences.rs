@@ -302,8 +302,13 @@ impl PreferencesDialog {
         });
         switch(
             ui,
+            &mut d.proxy_ask,
+            "Ask me when a large video is put on the timeline",
+        );
+        switch(
+            ui,
             &mut d.auto_proxies,
-            "Make proxies of large videos when they are imported",
+            "When not asking, make proxies of large videos automatically",
         );
         ui.add_space(8.0);
         widgets::group_title(ui, "Preview");

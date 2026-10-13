@@ -2,6 +2,14 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.2 (a question before making proxies)
+
+- When a large video is put on the timeline, TidyCuts now asks whether to make a smaller,
+  smooth-editing copy of it (a proxy), like other editors do, instead of making one at once on
+  import. Choose "Make smooth copy" or "Use the original", and tick "Remember my choice" to stop
+  being asked. Preferences > Performance has two switches for this. Exports always use the
+  original.
+
 ## 1.3.1 (a faster Image Generator and smoother editing)
 
 **Image Thumbnail Generator**
