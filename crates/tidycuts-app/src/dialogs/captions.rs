@@ -263,8 +263,7 @@ impl CaptionsDialog {
                         };
                         ui.add(
                             egui::ProgressBar::new(f as f32)
-                                .text(format!("{what}… {:.0}%", f * 100.0))
-                                .animate(true),
+                                .text(format!("{what}… {:.0}%", f * 100.0)),
                         );
                         ctx.request_repaint_after(std::time::Duration::from_millis(200));
                     }

@@ -136,15 +136,19 @@ impl Quality {
 /// picture models share with the graphics chip: a Mac with Apple silicon.
 /// `None` elsewhere (a PC's graphics card has memory of its own).
 pub fn shared_memory_gb() -> Option<f64> {
-    if !cfg!(target_os = "macos") {
-        return None;
-    }
-    let out = std::process::Command::new("sysctl")
-        .args(["-n", "hw.memsize"])
-        .output()
-        .ok()?;
-    let bytes: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
-    Some(bytes / f64::from(1u32 << 30))
+    // Asked once: the window calls this every frame, and each ask starts a process.
+    static MEMORY: std::sync::OnceLock<Option<f64>> = std::sync::OnceLock::new();
+    *MEMORY.get_or_init(|| {
+        if !cfg!(target_os = "macos") {
+            return None;
+        }
+        let out = std::process::Command::new("sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()?;
+        let bytes: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+        Some(bytes / f64::from(1u32 << 30))
+    })
 }
 
 /// Which size of the models suits a computer with this much shared memory:
@@ -621,11 +625,30 @@ pub fn generate(
     cancel: &AtomicBool,
     progress: impl FnMut(f64),
 ) -> Result<Vec<PathBuf>, String> {
-    let files = generate_files(req, out_dir, cancel, progress)?;
+    let files = generate_files(req, out_dir, cancel, progress, &mut |_, _| {})?;
     for f in &files {
         fit_exact(f, req.width, req.height)?;
     }
     Ok(files)
+}
+
+/// Like [`generate`], but tells `on_picture(index, file)` as soon as each
+/// picture is drawn, so the caller can finish and show it while the next one
+/// is being drawn. The pictures are NOT resized to the exact size: the caller
+/// does that with [`finish_size`] (off its own busy thread).
+pub fn generate_streaming(
+    req: &Request,
+    out_dir: &Path,
+    cancel: &AtomicBool,
+    progress: impl FnMut(f64),
+    mut on_picture: impl FnMut(usize, &Path),
+) -> Result<Vec<PathBuf>, String> {
+    generate_files(req, out_dir, cancel, progress, &mut on_picture)
+}
+
+/// Makes a drawn picture exactly `width` x `height`.
+pub fn finish_size(path: &Path, width: u32, height: u32) -> Result<(), String> {
+    fit_exact(path, width, height)
 }
 
 fn generate_files(
@@ -633,6 +656,7 @@ fn generate_files(
     out_dir: &Path,
     cancel: &AtomicBool,
     mut progress: impl FnMut(f64),
+    on_picture: &mut dyn FnMut(usize, &Path),
 ) -> Result<Vec<PathBuf>, String> {
     let program =
         program_file().ok_or("The image program that comes with TidyCuts was not found.")?;
@@ -652,7 +676,7 @@ fn generate_files(
     // (TIDYCUTS_IMAGEGEN_NO_SERVICE=1 turns this off, for measuring.)
     if std::env::var_os("TIDYCUTS_IMAGEGEN_NO_SERVICE").is_none() {
         use crate::imagegen_service::{self as service, Error};
-        match service::generate(req, out_dir, cancel, &mut progress) {
+        match service::generate(req, out_dir, cancel, &mut progress, &mut *on_picture) {
             Ok(files) => return Ok(files),
             Err(Error::Cancelled) => return Err("Cancelled.".into()),
             Err(Error::Failed(m)) => return Err(m),
@@ -744,6 +768,9 @@ fn generate_files(
         return Err(explain_failure(&tail));
     }
     progress(1.0);
+    for (i, f) in made.iter().enumerate() {
+        on_picture(i, f);
+    }
     Ok(made)
 }
 

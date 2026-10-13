@@ -389,6 +389,7 @@ pub fn generate(
     out_dir: &Path,
     cancel: &AtomicBool,
     mut progress: impl FnMut(f64),
+    on_picture: &mut dyn FnMut(usize, &Path),
 ) -> Result<Vec<PathBuf>, Error> {
     let (port, live) = ensure(req.quality, cancel)?;
     let passes = if crate::imagegen::draw_size(req.width, req.height).1 {
@@ -479,6 +480,7 @@ pub fn generate(
             out_dir.join(format!("picture_{i}.png"))
         };
         std::fs::write(&path, bytes).map_err(|e| Error::Failed(e.to_string()))?;
+        on_picture(files.len(), &path);
         files.push(path);
         if let Some(r) = SERVICE.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
             r.used = Instant::now();
@@ -575,6 +577,7 @@ mod tests {
                 &std::env::temp_dir().join("tidycuts-svc-none"),
                 &never,
                 |_| {},
+                &mut |_, _| {},
             );
             assert!(matches!(r, Err(Error::Unavailable(_))));
         }

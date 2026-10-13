@@ -22,6 +22,9 @@ const SHAPES: [&str; 3] = ["Widescreen", "Square", "Vertical"];
 /// The most pictures one press makes (the window has this many places).
 const PICTURES: u32 = 4;
 
+/// Finished pictures by place in the grid: the file and its decoded picture.
+type Ready = Arc<Mutex<Vec<Option<(PathBuf, egui::ColorImage)>>>>;
+
 enum Job {
     Idle,
     /// Downloading models: what it is doing and how far along.
@@ -65,7 +68,11 @@ pub struct ImageGenDialog {
     remove_white: bool,
     side: usize,
     glow: usize,
-    results: Vec<PathBuf>,
+    results: Vec<Option<PathBuf>>,
+    /// Pictures finished by the worker (off the window's thread), waiting to be shown.
+    ready: Ready,
+    /// How many places of the grid the running job fills.
+    slots: usize,
     textures: Vec<Option<egui::TextureHandle>>,
     selected: Option<usize>,
     /// The picture shown large, when one was clicked.
@@ -154,6 +161,8 @@ impl ImageGenDialog {
             side: 2,
             glow: 0,
             results: Vec::new(),
+            ready: Arc::new(Mutex::new(Vec::new())),
+            slots: 0,
             textures: Vec::new(),
             selected: None,
             viewing: None,
@@ -219,30 +228,64 @@ impl ImageGenDialog {
         self.viewing = None;
         self.cancel.store(false, Ordering::Relaxed);
         *self.job.lock().unwrap() = Job::Making(0.0);
+        let count = req.count as usize;
+        self.slots = count;
+        self.textures = vec![None; count];
+        self.results = vec![None; count];
+        *self.ready.lock().unwrap() = vec![None; count];
         let (job, cancel, ctx) = (self.job.clone(), self.cancel.clone(), ctx.clone());
+        let ready = self.ready.clone();
         std::thread::spawn(move || {
             let set = |f: f64| {
                 *job.lock().unwrap() = Job::Making(f);
                 ctx.request_repaint();
             };
-            let result = (|| {
-                let scale = if photo.is_some() { 0.85 } else { 1.0 };
-                let pics = imagegen::generate(&req, &dir, &cancel, |f| set(f * scale))?;
-                let Some(photo) = photo else {
-                    return Ok(pics);
-                };
-                let mut out = Vec::new();
-                for (i, p) in pics.iter().enumerate() {
-                    if cancel.load(Ordering::Relaxed) {
-                        return Err("Cancelled.".to_string());
+            // Each picture is finished (resized, or the photo placed in) and decoded on a
+            // thread of its own while the next one is being drawn.
+            let (tx, rx) = std::sync::mpsc::channel::<(usize, PathBuf)>();
+            let problem: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+            let finisher = {
+                let (ready, ctx, problem, dir) =
+                    (ready.clone(), ctx.clone(), problem.clone(), dir.clone());
+                let (w, h) = (req.width, req.height);
+                std::thread::spawn(move || {
+                    for (i, drawn) in rx {
+                        let done = (|| -> Result<(PathBuf, egui::ColorImage), String> {
+                            let path = match &photo {
+                                Some(photo) => {
+                                    let o = dir.join(format!("scene_{i}.png"));
+                                    imagegen::place_photo(&drawn, photo, &o, w, h, &placement)?;
+                                    o
+                                }
+                                None => {
+                                    imagegen::finish_size(&drawn, w, h)?;
+                                    drawn
+                                }
+                            };
+                            let img = load_png(&path).ok_or("A picture could not be shown.")?;
+                            Ok((path, img))
+                        })();
+                        match done {
+                            Ok(v) => {
+                                if let Some(slot) = ready.lock().unwrap().get_mut(i) {
+                                    *slot = Some(v);
+                                }
+                            }
+                            Err(e) => *problem.lock().unwrap() = Some(e),
+                        }
+                        ctx.request_repaint();
                     }
-                    let o = dir.join(format!("scene_{i}.png"));
-                    imagegen::place_photo(p, &photo, &o, req.width, req.height, &placement)?;
-                    out.push(o);
-                    set(0.85 + 0.15 * (i + 1) as f64 / pics.len() as f64);
-                }
-                Ok(out)
-            })();
+                })
+            };
+            let result = imagegen::generate_streaming(&req, &dir, &cancel, &set, |i, p| {
+                let _ = tx.send((i, p.to_path_buf()));
+            });
+            drop(tx);
+            let _ = finisher.join();
+            let result = match (result, problem.lock().unwrap().take()) {
+                (Ok(_), Some(e)) => Err(e),
+                (r, _) => r.map(|_| Vec::new()),
+            };
             *job.lock().unwrap() = Job::Made(result);
             ctx.request_repaint();
         });
@@ -250,6 +293,35 @@ impl ImageGenDialog {
 
     /// Takes in what a worker thread has finished.
     fn poll(&mut self, app: &mut TidyCutsApp, ctx: &egui::Context) {
+        // Pictures that were finished since the last frame: only the upload is done here.
+        let arrived: Vec<(usize, PathBuf, egui::ColorImage)> = self
+            .ready
+            .lock()
+            .unwrap()
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, s)| s.take().map(|(p, img)| (i, p, img)))
+            .collect();
+        for (i, path, img) in arrived {
+            let tex = ctx.load_texture(
+                format!("imagegen-{i}-{}", path.display()),
+                img,
+                egui::TextureOptions::LINEAR,
+            );
+            if let Some(t) = self.textures.get_mut(i) {
+                *t = Some(tex);
+            }
+            if let Some(r) = self.results.get_mut(i) {
+                *r = Some(path);
+            }
+            if self.selected.is_none() {
+                self.selected = Some(i);
+            }
+            // One picture needs no choosing: show it large at once.
+            if self.slots == 1 {
+                self.viewing = Some(i);
+            }
+        }
         let finished = {
             let mut j = self.job.lock().unwrap();
             if matches!(*j, Job::Downloaded(_) | Job::Made(_)) {
@@ -269,25 +341,7 @@ impl ImageGenDialog {
                 app.notify("The image models are ready.", false);
             }
             Job::Downloaded(Err(e)) if e != "Cancelled." => self.error = Some(e),
-            Job::Made(Ok(files)) => {
-                self.textures = files
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        load_png(f).map(|img| {
-                            ctx.load_texture(
-                                format!("imagegen-{i}-{}", f.display()),
-                                img,
-                                egui::TextureOptions::LINEAR,
-                            )
-                        })
-                    })
-                    .collect();
-                self.selected = (!files.is_empty()).then_some(0);
-                // One picture needs no choosing: show it large at once.
-                self.viewing = (files.len() == 1).then_some(0);
-                self.results = files;
-            }
+            Job::Made(Ok(_)) => {}
             Job::Made(Err(e)) if e != "Cancelled." => self.error = Some(e),
             _ => {}
         }
@@ -298,6 +352,7 @@ impl ImageGenDialog {
         let src = self
             .selected
             .and_then(|i| self.results.get(i))
+            .and_then(Option::as_ref)
             .ok_or("Choose a picture first.")?;
         let dir = app.stills_dir();
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -432,7 +487,11 @@ impl ImageGenDialog {
             self.make(ctx);
         }
         if save {
-            if let Some(src) = self.selected.and_then(|i| self.results.get(i)) {
+            if let Some(src) = self
+                .selected
+                .and_then(|i| self.results.get(i))
+                .and_then(Option::as_ref)
+            {
                 let desktop = desktop_dir(app.stills_dir());
                 let name = crate::thumbnail::free_name(&desktop, "Generated picture", "png");
                 if let Some(dest) = rfd::FileDialog::new()
@@ -655,8 +714,7 @@ impl ImageGenDialog {
                             ui.add_space(6.0);
                             ui.add(
                                 egui::ProgressBar::new(*f as f32)
-                                    .text(format!("{stage}… {:.0}%", f * 100.0))
-                                    .animate(true),
+                                    .text(format!("{stage}… {:.0}%", f * 100.0)),
                             );
                             ui.ctx()
                                 .request_repaint_after(std::time::Duration::from_millis(200));
@@ -808,7 +866,11 @@ impl ImageGenDialog {
                             Color32::WHITE,
                         );
                     } else {
-                        let text = if making.is_some() { "Drawing…" } else { "" };
+                        let text = if making.is_some() && i < self.slots {
+                            "Drawing…"
+                        } else {
+                            ""
+                        };
                         ui.painter().text(
                             inner.center(),
                             egui::Align2::CENTER_CENTER,
@@ -836,14 +898,10 @@ impl ImageGenDialog {
             });
         }
         if let Some(f) = making {
-            ui.add(
-                egui::ProgressBar::new(f as f32)
-                    .text(format!("Drawing… {:.0}%", f * 100.0))
-                    .animate(true),
-            );
+            ui.add(egui::ProgressBar::new(f as f32).text(format!("Drawing… {:.0}%", f * 100.0)));
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(200));
-        } else if self.results.is_empty() {
+        } else if self.results.iter().all(Option::is_none) {
             widgets::hint(
                 ui,
                 "Four pictures appear here, about half a minute after you press Make. Click the one you like.",
