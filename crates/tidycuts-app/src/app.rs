@@ -2342,6 +2342,7 @@ impl TidyCutsApp {
         let playing = engine.is_playing();
         if playing {
             if self.preview.mode == PreviewMode::Timeline {
+                let _p = profile_span("sync");
                 engine.sync_playback(&self.project, self.revision);
             }
             engine.tick_playing(size);

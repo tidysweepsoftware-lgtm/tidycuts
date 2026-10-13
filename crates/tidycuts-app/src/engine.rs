@@ -187,11 +187,14 @@ impl Engine {
 
     fn draw(&mut self, prepared: &PreparedFrame) {
         self.drawn += 1;
+        let _p = crate::app::profile_span("statics");
         for (k, img) in &prepared.statics {
             if !self.compositor.has_static(*k) {
                 self.compositor.store_static(*k, img);
             }
         }
+        drop(_p);
+        let _p = crate::app::profile_span("render");
         if let Some(t) = &self.target {
             self.compositor.render(&prepared.frame, t);
         }
@@ -298,7 +301,10 @@ impl Engine {
             return false;
         }
         self.playback.set_output_size(size.0, size.1);
-        if let Some(f) = self.playback.poll() {
+        let _p = crate::app::profile_span("poll");
+        let polled = self.playback.poll();
+        drop(_p);
+        if let Some(f) = polled {
             if crate::app::FRAMES_TO_LOG
                 .try_update(
                     std::sync::atomic::Ordering::Relaxed,
@@ -311,7 +317,9 @@ impl Engine {
             }
             // The compositor scales to the target, so frames planned before
             // a resize still fill it.
+            let _p = crate::app::profile_span("ensure");
             self.ensure_target(size);
+            drop(_p);
             self.draw(&f);
             self.shown = None;
         }
