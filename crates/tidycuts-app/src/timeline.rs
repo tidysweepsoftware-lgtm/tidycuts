@@ -127,6 +127,9 @@ pub struct TimelineState {
     pub snap: bool,
     /// The playhead is being dragged (the preview uses fast frames).
     pub scrubbing: bool,
+    /// The ruler was pressed on the playhead's handle (judged when the button went down,
+    /// because during playback the handle has moved on by the time a drag starts).
+    pub pressed_on_handle: bool,
     pub fit_requested: bool,
     /// Track height multiplier (small / normal / large).
     pub track_size: f32,
@@ -155,6 +158,7 @@ impl Default for TimelineState {
             scroll_y: 0.0,
             snap: true,
             scrubbing: false,
+            pressed_on_handle: false,
             fit_requested: false,
             track_size: 1.0,
             track_heights: HashMap::new(),
@@ -1284,6 +1288,14 @@ fn ruler_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect, view: View) {
     let resp = ui.interact(rect, Id::new("tl-ruler"), Sense::click_and_drag());
     let pointer = resp.interact_pointer_pos();
     let handle_x = view.x(app.timeline.playhead);
+    if ui.input(|i| i.pointer.primary_pressed()) {
+        if let Some(p) = ui
+            .input(|i| i.pointer.press_origin())
+            .filter(|p| rect.contains(*p))
+        {
+            app.timeline.pressed_on_handle = (p.x - handle_x).abs() < 8.0;
+        }
+    }
     if resp.hovered() {
         let near = ui
             .ctx()
@@ -1305,7 +1317,7 @@ fn ruler_ui(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect, view: View) {
     if resp.drag_started() {
         let origin = ui.ctx().input(|i| i.pointer.press_origin());
         if let Some(p) = origin.or(pointer) {
-            let scrub = (p.x - handle_x).abs() < 8.0;
+            let scrub = app.timeline.pressed_on_handle || (p.x - handle_x).abs() < 8.0;
             app.timeline.ruler = Some(RulerDrag {
                 start_x: p.x,
                 start_pps: app.timeline.px_per_sec,
