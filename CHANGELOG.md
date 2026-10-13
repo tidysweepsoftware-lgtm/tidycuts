@@ -2,6 +2,14 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.3 (smoother scrubbing)
+
+- You can now grab the red playhead and drag it while the video is playing (before, it had to
+  be paused first: the grab was judged after the line had already moved on).
+- Jumping to a new place in a proxied video is about 90 ms quicker (a frame took 0.22 s instead
+  of 0.32 s): the graphics-card decoder is no longer started for small proxy files.
+- Making a proxy runs at lower priority, so it no longer slows the picture while you scrub.
+
 ## 1.3.2 (a question before making proxies)
 
 - When a large video is put on the timeline, TidyCuts now asks whether to make a smaller,

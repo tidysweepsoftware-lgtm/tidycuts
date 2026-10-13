@@ -4,11 +4,11 @@
 
 <br><br>
 
-<a href="../../releases/download/v1.3.2/TidyCuts-Setup-1.3.2.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.2/TidyCuts-1.3.2-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
+<a href="../../releases/download/v1.3.3/TidyCuts-Setup-1.3.3.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.3/TidyCuts-1.3.3-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
 
 <sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer)</sub>
 
-<sub>Version 1.3.2 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
+<sub>Version 1.3.3 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
 
 <br>
 
@@ -44,10 +44,10 @@ optional link that lets an AI assistant edit with you (off until you turn it on)
 
 | Platform | File | For |
 | --- | --- | --- |
-| Windows | [TidyCuts-Setup-1.3.2.exe](../../releases/download/v1.3.2/TidyCuts-Setup-1.3.2.exe) | Installer for Windows 10 and 11 |
-| Windows | [TidyCuts-1.3.2-windows-portable.zip](../../releases/download/v1.3.2/TidyCuts-1.3.2-windows-portable.zip) | No install: unzip and run |
-| Mac | [TidyCuts-1.3.2-macos.dmg](../../releases/download/v1.3.2/TidyCuts-1.3.2-macos.dmg) | Apple silicon, macOS 11 or later |
-| Mac | [TidyCuts-1.3.2-macos.zip](../../releases/download/v1.3.2/TidyCuts-1.3.2-macos.zip) | The same app, if the disk image gives trouble |
+| Windows | [TidyCuts-Setup-1.3.3.exe](../../releases/download/v1.3.3/TidyCuts-Setup-1.3.3.exe) | Installer for Windows 10 and 11 |
+| Windows | [TidyCuts-1.3.3-windows-portable.zip](../../releases/download/v1.3.3/TidyCuts-1.3.3-windows-portable.zip) | No install: unzip and run |
+| Mac | [TidyCuts-1.3.3-macos.dmg](../../releases/download/v1.3.3/TidyCuts-1.3.3-macos.dmg) | Apple silicon, macOS 11 or later |
+| Mac | [TidyCuts-1.3.3-macos.zip](../../releases/download/v1.3.3/TidyCuts-1.3.3-macos.zip) | The same app, if the disk image gives trouble |
 
 FFmpeg is included. Checksums for every file are on the [releases page](../../releases/latest).
 Intel Macs are not supported yet.
