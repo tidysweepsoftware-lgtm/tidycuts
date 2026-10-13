@@ -22,7 +22,9 @@ and then its categories.
   tracks after the cut move with it.
 - A scissors button on the playhead, markers, freeze frame and snapshot.
 - Drag clips to move them and their edges to trim; drag the ruler to zoom, click
-  it to jump, drag the playhead to scrub.
+  it to jump, drag the playhead to scrub (you can grab it while the video plays).
+- **Skimming**: with the video paused, move the mouse over the timeline and the player shows
+  the picture under it, with a thin line to mark the place; the playhead stays where it is.
 - The right-click menu has the usual clip commands: cut, copy, paste, duplicate,
   split, ripple delete, crop and zoom, rotate, speed, reverse, detach audio,
   mute, replace, colour marks and more.
@@ -76,12 +78,16 @@ a lettering style and where it sits, and save a PNG or JPG (widescreen, square o
 vertical). Edit menu → Make Thumbnail.
 
 **Image Thumbnail Generator.** The sparkle button beside the timeline (or Edit menu → Image
-Thumbnail Generator). Type an idea and get four pictures drawn on your computer; pick a look
-and a shape, add up to three inspiration pictures to copy their colours and mood, or a photo of
-a person to draw in. *My photo in a scene* keeps a real photo exact and draws the scene around it.
-*Add words* opens the thumbnail maker with the picture. The first time you choose and download
-the models (Standard 5.1 GB or High quality 8.7 GB, once); after that it works offline, and
-both sizes can be kept and chosen per thumbnail.
+Thumbnail Generator). Type an idea and get pictures drawn on your computer, one after another
+(1 to 4 at a time, each appears as soon as it is finished). Choose a size from 720p up to 4K,
+a look and a shape; add up to three inspiration pictures to copy their colours and mood, or a
+photo of a person to draw in. *My photo in a scene* keeps a real photo exact and draws the scene
+around it. Click a picture to see it large; *Add words* opens the thumbnail maker with it;
+Save opens on the Desktop. The image program stays loaded between presses, so the next picture
+starts in about a second. The first time you choose and download the models (Standard 5.1 GB or
+High quality 8.7 GB, once); after that it works offline, and both can be kept and chosen per
+thumbnail (Preferences → Image generator). It uses FLUX.2 [klein] 4B and Qwen3 4B (both
+Apache 2.0) through stable-diffusion.cpp (MIT).
 
 **Colour.** Sliders, HSL ranges, curves, LUTs and four colour wheels (lift, gamma,
 gain, offset) for fine colour work. View menu → Scopes shows a waveform, an RGB
@@ -121,8 +127,10 @@ of the panels to resize them.
 **Audio mixer.** Volume, mute and solo for every track, a master fader and level
 meters.
 
-**Big videos.** Proxies (small copies) are made automatically for videos above
-1080p, so editing stays smooth; export always uses the original.
+**Big videos.** When a video above 1080p is put on the timeline, TidyCuts asks whether to make
+a proxy (a small copy) so editing and jumping stay instant; "Remember my choice" stops the
+question (Preferences → Performance). Pictures are read straight out of the proxy, and export
+always uses the original.
 
 **Safety.** Every change is one undo step; autosave; after a crash TidyCuts
 offers your unsaved work back.

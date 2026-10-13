@@ -7,8 +7,8 @@ Download the file for your computer from the
 | --- | --- |
 | `TidyCuts-Setup-1.3.4.exe` | Windows 10 and 11, 64-bit. The installer. Best for most people. |
 | `TidyCuts-1.3.4-windows-portable.zip` | Windows. No installing: unzip it anywhere and run `TidyCuts.exe`. |
-| `TidyCuts-1.3.4-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. |
-| `TidyCuts-1.3.4-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
+| `TidyCuts-1.3.0-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. The Mac app is version 1.3.0 for now (on the 1.3.0 release). |
+| `TidyCuts-1.3.0-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
 | `SHA256SUMS.txt` | A checksum for every file, to check that a download is the one we built. |
 
 FFmpeg, which TidyCuts uses to read and write video files, is included in every
@@ -46,7 +46,7 @@ folder.
 
 ## Mac
 
-1. Open `TidyCuts-1.3.4-macos.dmg`.
+1. Open `TidyCuts-1.3.0-macos.dmg`.
 2. Drag **TidyCuts** onto the **Applications** folder in the same window.
 3. Open **TidyCuts** from Applications (or Launchpad).
 

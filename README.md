@@ -4,9 +4,9 @@
 
 <br><br>
 
-<a href="../../releases/download/v1.3.4/TidyCuts-Setup-1.3.4.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.4/TidyCuts-1.3.4-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
+<a href="../../releases/latest/download/TidyCuts-Setup-1.3.4.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
 
-<sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer)</sub>
+<sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer): the Mac app is version 1.3.0 for now</sub>
 
 <sub>Version 1.3.4 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
 
@@ -33,6 +33,27 @@
 
 <p align="center"><sub>Titles · Transitions · Effects · Filters · Stickers · Blur a face</sub></p>
 
+## Draw your thumbnail with AI, on your own computer
+
+Type an idea (*"a helicopter circling a tower at sunset"*) and the **Image Thumbnail Generator**
+draws pictures for you, one after another, from 720p up to **4K**, and **1 to 4** at a time.
+Show it up to three pictures you like and it copies their colours, lighting and mood, draw a
+person in, or place a **real product photo** into a drawn scene. **Add words** then puts your
+title on in clear, correctly spelled letters. It runs on your own graphics card, so your ideas
+and photos never leave your computer. The first time, you choose which picture models to
+download (Standard 5.1 GB or High quality 8.7 GB, or both); after that it works offline. It
+draws with FLUX.2 [klein] (Apache 2.0) through stable-diffusion.cpp (MIT).
+
+## Smooth to edit
+
+- **Skimming**: move the mouse over a paused timeline and the player shows the frame under it,
+  without moving the playhead.
+- **Instant jumping and smooth scrubbing**, with optional smooth-editing copies (proxies) for big
+  4K videos: TidyCuts asks before making one, and exports always use the original.
+- **Normalize** only turns down sound that is too loud, **Enhance Speech** removes background
+  noise, **Auto Captions** work in 99 languages with Whisper, and **Stabilization** steadies
+  shaky clips.
+
 Plus a magnetic timeline with up to 10 video and 5 audio tracks, speed ramps and
 keyframes · colour wheels, curves, LUTs and scopes · voiceover from typed text ·
 scene and beat detection · export to 13 formats with graphics-card encoding · and an
@@ -44,10 +65,10 @@ optional link that lets an AI assistant edit with you (off until you turn it on)
 
 | Platform | File | For |
 | --- | --- | --- |
-| Windows | [TidyCuts-Setup-1.3.4.exe](../../releases/download/v1.3.4/TidyCuts-Setup-1.3.4.exe) | Installer for Windows 10 and 11 |
-| Windows | [TidyCuts-1.3.4-windows-portable.zip](../../releases/download/v1.3.4/TidyCuts-1.3.4-windows-portable.zip) | No install: unzip and run |
-| Mac | [TidyCuts-1.3.4-macos.dmg](../../releases/download/v1.3.4/TidyCuts-1.3.4-macos.dmg) | Apple silicon, macOS 11 or later |
-| Mac | [TidyCuts-1.3.4-macos.zip](../../releases/download/v1.3.4/TidyCuts-1.3.4-macos.zip) | The same app, if the disk image gives trouble |
+| Windows | [TidyCuts-Setup-1.3.4.exe](../../releases/latest/download/TidyCuts-Setup-1.3.4.exe) | Installer for Windows 10 and 11 |
+| Windows | [TidyCuts-1.3.4-windows-portable.zip](../../releases/latest/download/TidyCuts-1.3.4-windows-portable.zip) | No install: unzip and run |
+| Mac | [TidyCuts-1.3.0-macos.dmg](../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.dmg) | Apple silicon, macOS 11 or later |
+| Mac | [TidyCuts-1.3.0-macos.zip](../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.zip) | The same app, if the disk image gives trouble |
 
 FFmpeg is included. Checksums for every file are on the [releases page](../../releases/latest).
 Intel Macs are not supported yet.
