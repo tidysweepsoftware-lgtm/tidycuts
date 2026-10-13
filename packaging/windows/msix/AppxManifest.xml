@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Package manifest for the Microsoft Store version of TidyCuts.
-  scripts/make-msix.ps1 fills in __VERSION__ (four numbers, for example 1.3.3.0) and
+  scripts/make-msix.ps1 fills in __VERSION__ (four numbers, for example 1.3.4.0) and
   builds the package with makeappx.
 
   The Identity Name and Publisher below are placeholders: before sending the package

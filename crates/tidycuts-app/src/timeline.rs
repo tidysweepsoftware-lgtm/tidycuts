@@ -127,6 +127,9 @@ pub struct TimelineState {
     pub snap: bool,
     /// The playhead is being dragged (the preview uses fast frames).
     pub scrubbing: bool,
+    /// Where the mouse is over the timeline while paused: the preview shows
+    /// that moment without moving the playhead (skimming).
+    pub skim: Option<Time>,
     /// The ruler was pressed on the playhead's handle (judged when the button went down,
     /// because during playback the handle has moved on by the time a drag starts).
     pub pressed_on_handle: bool,
@@ -158,6 +161,7 @@ impl Default for TimelineState {
             scroll_y: 0.0,
             snap: true,
             scrubbing: false,
+            skim: None,
             pressed_on_handle: false,
             fit_requested: false,
             track_size: 1.0,
@@ -409,6 +413,7 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui) {
     }
     ruler_ui(app, ui, ruler, view);
     playhead(app, ui, ruler, lanes, view, &rows);
+    skim(app, ui, ruler, lanes, view);
     corner(
         app,
         ui,
@@ -1630,6 +1635,38 @@ fn clips_at_playhead(app: &TidyCutsApp) -> bool {
         .tracks
         .iter()
         .any(|tr| !tr.locked && tr.clip_at(t).is_some())
+}
+
+/// While paused, moving the mouse over the timeline shows the picture under
+/// it in the player, with a thin line to mark the place; the playhead stays.
+fn skim(app: &mut TidyCutsApp, ui: &mut Ui, ruler: Rect, lanes: Rect, view: View) {
+    let area = Rect::from_min_max(
+        egui::pos2(lanes.left(), ruler.top()),
+        egui::pos2(lanes.right(), lanes.bottom()),
+    );
+    let ctx = ui.ctx().clone();
+    let pointer = ctx
+        .pointer_hover_pos()
+        .filter(|p| area.contains(*p))
+        .filter(|p| ctx.layer_id_at(*p) == Some(ui.layer_id()));
+    let idle = !ctx.input(|i| i.pointer.any_down())
+        && app.timeline.drag.is_none()
+        && app.timeline.ruler.is_none()
+        && !app.is_playing()
+        && !app.dialogs.is_modal_open()
+        && app.preview.mode == crate::preview::PreviewMode::Timeline;
+    let Some(p) = pointer.filter(|_| idle) else {
+        app.timeline.skim = None;
+        return;
+    };
+    let len = app.project.duration();
+    let t = app.project.settings.frame_rate.snap(view.t(p.x)).min(len);
+    app.timeline.skim = Some(t);
+    ui.painter().with_clip_rect(area).vline(
+        view.x(t),
+        area.y_range(),
+        Stroke::new(1.0, Color32::from_white_alpha(110)),
+    );
 }
 
 fn playhead(

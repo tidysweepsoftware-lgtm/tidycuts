@@ -8,9 +8,17 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tidycuts_core::{Clip, ClipId, MediaItem, MediaKind};
 use tidycuts_render::Pixels;
+
+/// Where the last preview picture came from (0 exact, 1 proxy file, 2 scrub
+/// cache, 3 an older picture or none). For the timing log only.
+pub static LAST_SOURCE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn note_source(n: u8) {
+    LAST_SOURCE.store(n, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// Supplies decoded pictures to the frame planner.
 pub trait FrameProvider {
@@ -98,7 +106,14 @@ struct Request {
     params: VideoParams,
     at: f64,
     key: FrameKey,
+    born: Instant,
 }
+
+/// How long a wanted exact frame waits before decoding starts. Starting a
+/// decoder is heavy enough to make the window hitch, so while the playhead
+/// is still being moved (each move replaces the request) nothing starts; the
+/// quick scrub-cache picture is shown meanwhile.
+const EXACT_DELAY: Duration = Duration::from_millis(150);
 
 struct Shared {
     lru: Mutex<Lru>,
@@ -161,7 +176,7 @@ impl FrameServer {
     }
 
     /// Asks for an exact frame to be decoded in the background.
-    pub fn request(&self, params: &VideoParams, at: f64) {
+    pub fn request(&self, params: &VideoParams, at: f64, patient: bool) {
         let key = Self::key(params, at);
         let mut lanes = self.shared.lanes.lock().unwrap();
         if lanes.0.get(&params.path).is_some_and(|r| r.key == key) {
@@ -174,6 +189,13 @@ impl FrameServer {
                 params: params.clone(),
                 at,
                 key,
+                // A picture someone is waiting for is decoded at once; one
+                // asked for while the mouse is still moving waits a moment.
+                born: if patient {
+                    Instant::now()
+                } else {
+                    Instant::now() - EXACT_DELAY
+                },
             },
         );
         lanes.1.retain(|p| *p != path);
@@ -191,7 +213,10 @@ impl FrameServer {
         let cache: Arc<MediaCache> = self.scrub.get(media)?;
         cache.focus(at);
         let gap = (max_gap_secs * cache.fps).ceil() as usize;
-        let i = cache.nearest(at, gap)?;
+        let Some(i) = cache.nearest(at, gap) else {
+            self.scrub.want(media, &cache, at);
+            return None;
+        };
         let key = FrameKey {
             path: media.path.clone(),
             frame: i as i64,
@@ -205,6 +230,14 @@ impl FrameServer {
         let p = Pixels::Rgba(Arc::new(img));
         self.shared.jpeg.lock().unwrap().put(key, p.clone());
         Some(p)
+    }
+
+    /// The picture at `at` read straight out of the video's proxy file, in
+    /// a few milliseconds and without starting a program. `None` when there
+    /// is no proxy in use or it can't be read this way.
+    pub fn proxy_frame(&self, media: &MediaItem, at: f64) -> Option<Pixels> {
+        let index = crate::proxyfile::shared(media.preview_path())?;
+        Some(Pixels::Rgba(index.picture(at)?))
     }
 
     /// Decodes a frame right now on the calling thread (used for stills).
@@ -228,6 +261,11 @@ fn exact_worker(s: Arc<Shared>) {
             let mut lanes = s.lanes.lock().unwrap();
             loop {
                 if let Some(path) = lanes.1.first().cloned() {
+                    let age = lanes.0.get(&path).map(|r| r.born.elapsed());
+                    if let Some(age) = age.filter(|a| *a < EXACT_DELAY) {
+                        lanes = s.cv.wait_timeout(lanes, EXACT_DELAY - age).unwrap().0;
+                        continue;
+                    }
                     lanes.1.remove(0);
                     if let Some(r) = lanes.0.remove(&path) {
                         break r;
@@ -291,14 +329,30 @@ impl FrameProvider for PreviewFrames<'_> {
             (media.duration.as_secs_f64() - 0.5 / params.fps).max(0.0),
         );
         if let Some(p) = self.server.cached(&params, at) {
+            note_source(0);
             return Some(p);
         }
-        self.server.request(&params, at);
+        if let Some(p) = self.server.proxy_frame(media, at) {
+            note_source(1);
+            return Some(p);
+        }
         self.incomplete = true;
-        let gap = if self.scrubbing { 2.0 } else { 0.25 };
-        self.server
-            .scrub_frame(media, at, gap)
-            .or_else(|| self.server.last(&params))
+        // While the playhead is being dragged, only the quick scrub-cache
+        // pictures are used: a background decode per mouse step would only
+        // compete with them. The exact picture is asked for once the drag ends.
+        if self.scrubbing {
+            if let Some(p) = self.server.scrub_frame(media, at, 2.0) {
+                note_source(2);
+                return Some(p);
+            }
+        }
+        self.server.request(&params, at, self.scrubbing);
+        // Until the exact picture is there, the nearest prepared one (up to
+        // two seconds away) is far better than leaving the old picture up.
+        let gap = 2.0;
+        let from_cache = self.server.scrub_frame(media, at, gap);
+        note_source(if from_cache.is_some() { 2 } else { 3 });
+        from_cache.or_else(|| self.server.last(&params))
     }
 }
 
@@ -359,6 +413,16 @@ impl StreamFrames {
         p
     }
 
+    /// Whether a clip can be played straight from its proxy file: playing
+    /// (not exporting) and no filters that need a decoder program.
+    fn proxy_ok(&self, clip: &Clip, params: &VideoParams) -> bool {
+        let _ = clip;
+        !self.high_quality
+            && params.pre_filters.is_empty()
+            && params.post_filters.is_empty()
+            && !params.alpha
+    }
+
     /// Starts a clip's decoder ahead of time so its first frame is ready.
     pub fn prefetch(&mut self, clip: &Clip, media: &MediaItem, source_secs: f64, size: (u32, u32)) {
         if media.kind != MediaKind::Video {
@@ -371,6 +435,9 @@ impl StreamFrames {
             return;
         }
         let params = self.params(clip, media, size);
+        if self.proxy_ok(clip, &params) && crate::proxyfile::shared(&params.path).is_some() {
+            return;
+        }
         let s = VideoStream::open(
             params,
             source_secs.max(0.0),
@@ -405,6 +472,15 @@ impl FrameProvider for StreamFrames {
             0.0,
             (media.duration.as_secs_f64() - 0.5 / params.fps).max(0.0),
         );
+        // A proxy is read in the app itself: no decoder program to start,
+        // so playing from a new place begins at once.
+        if self.proxy_ok(clip, &params) {
+            if let Some(index) = crate::proxyfile::shared(&params.path) {
+                if let Some(img) = index.picture(at) {
+                    return Some(Pixels::Rgba(img));
+                }
+            }
+        }
         let tick = self.tick;
         let reusable = self
             .streams

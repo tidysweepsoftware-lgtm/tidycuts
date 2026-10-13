@@ -58,6 +58,9 @@ pub struct MediaCache {
     focus: AtomicU64,
     claimed: Mutex<Vec<bool>>,
     cancelled: AtomicBool,
+    /// The stretch (in seconds) a quick on-demand build was last asked for,
+    /// so jumping around does not ask for the same place twice.
+    urgent_range: Mutex<(f64, f64)>,
 }
 
 impl MediaCache {
@@ -111,6 +114,13 @@ impl MediaCache {
     pub fn focus(&self, secs: f64) {
         self.focus
             .store((secs / CHUNK_SECS).max(0.0) as u64, Ordering::Relaxed);
+    }
+
+    /// Whether no builder has taken the chunk holding `secs` yet.
+    fn chunk_unclaimed(&self, secs: f64) -> bool {
+        let c = self.claimed.lock().unwrap();
+        let i = ((secs / CHUNK_SECS).max(0.0) as usize).min(c.len().saturating_sub(1));
+        c.get(i).is_some_and(|taken| !taken)
     }
 
     fn claim(&self) -> Option<usize> {
@@ -190,11 +200,27 @@ struct Job {
     duration: f64,
 }
 
+/// A short stretch to cache straight away because the playhead jumped there.
+struct UrgentJob {
+    cache: Arc<MediaCache>,
+    path: PathBuf,
+    duration: f64,
+    start: f64,
+}
+
+/// Seconds cached by a quick on-demand build.
+const URGENT_SECS: f64 = 2.0;
+/// Chunk files made by quick builds are numbered from here, clear of the
+/// regular chunks.
+const URGENT_FILE_BASE: u32 = 1_000_000;
+
 /// All scrub caches, plus the worker threads that build them.
 pub struct ScrubCache {
     root: PathBuf,
     caches: Mutex<HashMap<PathBuf, Arc<MediaCache>>>,
     queue: Arc<(Mutex<Vec<Job>>, Condvar)>,
+    /// The one quick on-demand build: the newest request replaces an older one.
+    urgent: Arc<(Mutex<Option<UrgentJob>>, Condvar)>,
     /// Called when new frames land, so the UI can repaint.
     notify: Arc<dyn Fn() + Send + Sync>,
 }
@@ -243,8 +269,17 @@ impl ScrubCache {
             root,
             caches: Mutex::new(HashMap::new()),
             queue: Arc::new((Mutex::new(Vec::new()), Condvar::new())),
+            urgent: Arc::new((Mutex::new(None), Condvar::new())),
             notify,
         });
+        {
+            let q = sc.urgent.clone();
+            let notify = sc.notify.clone();
+            thread::Builder::new()
+                .name("tidycuts-scrub-now".into())
+                .spawn(move || urgent_worker(q, notify))
+                .expect("spawn scrub worker");
+        }
         for n in 0..workers.max(1) {
             let q = sc.queue.clone();
             let notify = sc.notify.clone();
@@ -282,6 +317,31 @@ impl ScrubCache {
         Some(cache)
     }
 
+    /// The playhead jumped to `at`, which is not cached yet: cache the
+    /// stretch around it first, without waiting for the regular builders.
+    pub fn want(&self, media: &MediaItem, cache: &Arc<MediaCache>, at: f64) {
+        if cache.is_complete() || !cache.chunk_unclaimed(at) {
+            return;
+        }
+        {
+            let mut range = cache.urgent_range.lock().unwrap();
+            if at >= range.0 && at < range.1 {
+                return;
+            }
+            let first = cache.frame_index(at).saturating_sub(8) as f64 / cache.fps;
+            *range = (first, first + URGENT_SECS);
+        }
+        let start = cache.urgent_range.lock().unwrap().0;
+        let (lock, cv) = &*self.urgent;
+        *lock.lock().unwrap() = Some(UrgentJob {
+            cache: cache.clone(),
+            path: media.preview_path().to_path_buf(),
+            duration: media.duration.as_secs_f64(),
+            start,
+        });
+        cv.notify_one();
+    }
+
     /// Stops building a file's cache (it was removed from the project).
     pub fn forget(&self, path: &Path) {
         if let Some(c) = self.caches.lock().unwrap().remove(path) {
@@ -317,6 +377,7 @@ impl ScrubCache {
                 focus: AtomicU64::new(0),
                 claimed: Mutex::new(vec![true; chunks_total]),
                 cancelled: AtomicBool::new(false),
+                urgent_range: Mutex::new((0.0, 0.0)),
             });
         }
         let _ = fs::remove_dir_all(&dir);
@@ -333,6 +394,7 @@ impl ScrubCache {
             focus: AtomicU64::new(0),
             claimed: Mutex::new(vec![false; chunks_total]),
             cancelled: AtomicBool::new(false),
+            urgent_range: Mutex::new((0.0, 0.0)),
         })
     }
 
@@ -397,7 +459,16 @@ fn worker(queue: Arc<(Mutex<Vec<Job>>, Condvar)>, notify: Arc<dyn Fn() + Send + 
                 jobs = cv.wait(jobs).unwrap();
             }
         };
-        build_chunk(&job, chunk, &*notify);
+        let start = chunk as f64 * CHUNK_SECS;
+        build_range(
+            &job.cache,
+            &job.path,
+            start,
+            CHUNK_SECS.min(job.duration - start),
+            chunk as u32,
+            false,
+            &*notify,
+        );
         let done = job.cache.chunks_done.fetch_add(1, Ordering::Relaxed) + 1;
         if done >= job.cache.chunks_total {
             job.cache.save();
@@ -406,24 +477,76 @@ fn worker(queue: Arc<(Mutex<Vec<Job>>, Condvar)>, notify: Arc<dyn Fn() + Send + 
     }
 }
 
-fn build_chunk(job: &Job, chunk: usize, notify: &dyn Fn()) {
+fn urgent_worker(
+    queue: Arc<(Mutex<Option<UrgentJob>>, Condvar)>,
+    notify: Arc<dyn Fn() + Send + Sync>,
+) {
+    let mut n = 0u32;
+    loop {
+        let job = {
+            let (lock, cv) = &*queue;
+            let mut slot = lock.lock().unwrap();
+            loop {
+                if let Some(j) = slot.take() {
+                    break j;
+                }
+                slot = cv.wait(slot).unwrap();
+            }
+        };
+        if job.cache.cancelled.load(Ordering::Relaxed) {
+            continue;
+        }
+        n = (n + 1) % 1000;
+        let len = URGENT_SECS.min(job.duration - job.start);
+        build_range(
+            &job.cache,
+            &job.path,
+            job.start,
+            len,
+            URGENT_FILE_BASE + n,
+            true,
+            &*notify,
+        );
+        notify();
+    }
+}
+
+/// Caches `len` seconds from `start` into chunk file number `file`.
+fn build_range(
+    c: &MediaCache,
+    path: &Path,
+    start: f64,
+    len: f64,
+    file: u32,
+    quick: bool,
+    notify: &dyn Fn(),
+) {
     let Ok(tools) = Tools::get() else {
         return;
     };
-    let c = &job.cache;
-    let start = chunk as f64 * CHUNK_SECS;
-    let len = CHUNK_SECS.min(job.duration - start).max(0.0);
+    let chunk = file;
     if len <= 0.0 {
         return;
     }
     let first = (start * c.fps).round() as usize;
     let mut cmd = tools.ffmpeg_cmd();
-    cmd.args(["-hwaccel", "auto", "-threads", "2"]);
+    // A proxy is quick to decode on the processor; starting the graphics
+    // card's decoder would cost more than it saves.
+    let proxy = path
+        .parent()
+        .and_then(|d| d.file_name())
+        .is_some_and(|n| n == "proxies");
+    // A short job that someone is waiting for starts faster on the
+    // processor too: the graphics card's decoder takes a while to set up.
+    if !proxy && !quick {
+        cmd.args(["-hwaccel", "auto"]);
+    }
+    cmd.args(["-threads", "2"]);
     if start > 0.0 {
         cmd.args(["-ss", &secs(start)]);
     }
     cmd.args(["-t", &secs(len)]);
-    cmd.arg("-i").arg(&job.path);
+    cmd.arg("-i").arg(path);
     cmd.args([
         "-an",
         "-sn",
@@ -482,7 +605,7 @@ fn build_chunk(job: &Job, chunk: usize, notify: &dyn Fn()) {
             let i = first + n;
             if i < c.frame_count {
                 c.index.write().unwrap()[i] = Some(Entry {
-                    file: chunk as u32,
+                    file: chunk,
                     offset,
                     len: img.len() as u32,
                 });

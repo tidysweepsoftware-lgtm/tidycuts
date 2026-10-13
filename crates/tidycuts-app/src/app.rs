@@ -443,6 +443,12 @@ impl TidyCutsApp {
     /// Moves the timeline playhead (switching the preview to the timeline).
     pub fn seek(&mut self, t: Time) {
         let t = t.max(Time::ZERO).min(self.project.duration());
+        profile_event(&format!(
+            "seek to {:.2} playing={}",
+            t.as_secs_f64(),
+            self.is_playing()
+        ));
+        FRAMES_TO_LOG.store(3, std::sync::atomic::Ordering::Relaxed);
         if self.preview.mode != PreviewMode::Timeline {
             self.show_timeline();
         }
@@ -451,6 +457,9 @@ impl TidyCutsApp {
             let size = self.preview.render_size;
             let (project, rev) = (&self.project, self.revision);
             if let Some(e) = &mut self.engine {
+                // The new place shows at once from the scrub cache; playing
+                // from there takes a moment to start.
+                e.show_still(project, rev, None, t, size, true);
                 e.play(project, rev, t, size, true);
             }
         }
@@ -2329,6 +2338,7 @@ impl TidyCutsApp {
         let Some(engine) = &mut self.engine else {
             return;
         };
+        let _prof = profile_span("engine");
         let playing = engine.is_playing();
         if playing {
             if self.preview.mode == PreviewMode::Timeline {
@@ -2352,15 +2362,27 @@ impl TidyCutsApp {
         }
         match self.preview.mode {
             PreviewMode::Timeline => {
-                let at = self.timeline.playhead;
+                // Skimming: the picture under the mouse, not the playhead's.
+                let skim = self.timeline.skim;
+                let at = skim.unwrap_or(self.timeline.playhead);
                 engine.show_still(
                     &self.project,
                     self.revision,
                     None,
                     at,
                     size,
-                    self.timeline.scrubbing,
+                    self.timeline.scrubbing || skim.is_some(),
                 );
+                profile_event(&format!(
+                    "still at {:.2} exact_pending={} source={}",
+                    at.as_secs_f64(),
+                    engine.pending_exact(),
+                    tidycuts_engine::frames::LAST_SOURCE.load(std::sync::atomic::Ordering::Relaxed)
+                ));
+                if skim.is_some() {
+                    // The picture drawn now is first painted next frame.
+                    ctx.request_repaint_after(Duration::from_millis(30));
+                }
             }
             PreviewMode::Source => {
                 let Some(m) = self
@@ -2385,6 +2407,98 @@ impl TidyCutsApp {
     }
 }
 
+/// Frame timing for finding stutter: when `TIDYCUTS_PROFILE` names a file,
+/// one line per window frame is appended (time since the last frame, time
+/// spent in it, and in the picture step).
+pub(crate) struct ProfileSpan(&'static str, Instant);
+
+type ProfileLog = Option<(Instant, Vec<(&'static str, f64)>)>;
+
+static PROFILE: std::sync::Mutex<ProfileLog> = std::sync::Mutex::new(None);
+
+fn profile_on() -> Option<std::path::PathBuf> {
+    static PATH: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+    PATH.get_or_init(|| std::env::var_os("TIDYCUTS_PROFILE").map(std::path::PathBuf::from))
+        .clone()
+}
+
+fn profile_frame(scrubbing: bool, playing: bool) -> Option<ProfileFrame> {
+    profile_on()?;
+    Some(ProfileFrame {
+        start: Instant::now(),
+        scrubbing,
+        playing,
+    })
+}
+
+struct ProfileFrame {
+    start: Instant,
+    scrubbing: bool,
+    playing: bool,
+}
+
+impl Drop for ProfileFrame {
+    fn drop(&mut self) {
+        use std::io::Write;
+        let Some(path) = profile_on() else { return };
+        let mut g = PROFILE.lock().unwrap();
+        let (last, spans) = g.get_or_insert((self.start, Vec::new()));
+        let gap = self.start.duration_since(*last).as_secs_f64() * 1000.0;
+        *last = self.start;
+        let total = self.start.elapsed().as_secs_f64() * 1000.0;
+        let parts: Vec<String> = spans
+            .drain(..)
+            .map(|(n, ms)| format!("{n}={ms:.1}"))
+            .collect();
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(
+                f,
+                "gap={gap:.1} frame={total:.1} scrub={} play={} {}",
+                self.scrubbing as u8,
+                self.playing as u8,
+                parts.join(" ")
+            );
+        }
+    }
+}
+
+/// Playing frames still to be logged after a jump (timing log only).
+pub(crate) static FRAMES_TO_LOG: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0);
+
+/// One line in the timing log for something that happened (a click, a picture).
+pub(crate) fn profile_event(text: &str) {
+    use std::io::Write;
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let Some(path) = profile_on() else { return };
+    let ms = START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "EV {ms:.0} {text}");
+    }
+}
+
+pub(crate) fn profile_span(name: &'static str) -> Option<ProfileSpan> {
+    profile_on()?;
+    Some(ProfileSpan(name, Instant::now()))
+}
+
+impl Drop for ProfileSpan {
+    fn drop(&mut self) {
+        let ms = self.1.elapsed().as_secs_f64() * 1000.0;
+        if let Some((_, spans)) = PROFILE.lock().unwrap().as_mut() {
+            spans.push((self.0, ms));
+        }
+    }
+}
+
 /// A revision number for a source preview that never equals a timeline one.
 fn source_revision(id: MediaId) -> u64 {
     (1u64 << 63) | (id.as_u128() as u64 & !(1u64 << 63))
@@ -2400,6 +2514,7 @@ const MIN_DRAW: (f32, f32) = (480.0, 320.0);
 impl eframe::App for TidyCutsApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let _prof = profile_frame(self.timeline.scrubbing, self.is_playing());
 
         if ctx.input(|i| i.viewport().close_requested()) && self.dirty && !self.allow_close {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);

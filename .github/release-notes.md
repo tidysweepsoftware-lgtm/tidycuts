@@ -1,10 +1,11 @@
 ## TidyCuts __VERSION__
 
-Smoother scrubbing, optional proxies and a faster Image Generator, in the free and open-source
+Instant scrubbing and skimming, optional proxies and a faster Image Generator, in the free and open-source
 video editor for Windows and Mac:
 
-- **Smoother scrubbing**: you can grab the red playhead while the video plays, jumping around a
-  proxied video is quicker, and making a proxy no longer slows the picture.
+- **Skimming and smooth scrubbing**: move the mouse over a paused timeline to see the picture under
+  it without moving the playhead; dragging the playhead no longer hitches, jumps while playing show
+  the new place at once, and you can grab the playhead while the video plays.
 - **Proxies are optional**: a large video put on the timeline now asks whether to make a
   smooth-editing copy, and you can remember the answer.
 

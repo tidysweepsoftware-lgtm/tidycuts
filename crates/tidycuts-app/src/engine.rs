@@ -69,7 +69,7 @@ impl Engine {
             .map(|n| n.get())
             .unwrap_or(4);
         tidycuts_engine::voice_clean::set_cache_dir(cache_dir.clone());
-        let scrub = ScrubCache::new(cache_dir, (cores / 3).clamp(1, 4), repaint.clone());
+        let scrub = ScrubCache::new(cache_dir, (cores / 2).clamp(2, 6), repaint.clone());
         let frames = FrameServer::new(
             scrub.clone(),
             768 << 20,
@@ -197,6 +197,11 @@ impl Engine {
         }
     }
 
+    /// Whether the last picture shown is not the exact one yet.
+    pub fn pending_exact(&self) -> bool {
+        self.incomplete
+    }
+
     /// Draws `project` at `at` while paused or scrubbing. Cheap when nothing
     /// changed since the last call.
     pub fn show_still(
@@ -208,7 +213,9 @@ impl Engine {
         size: (u32, u32),
         scrubbing: bool,
     ) {
+        let _p = crate::app::profile_span("ensure");
         self.ensure_target(size);
+        drop(_p);
         let key = Shown {
             revision,
             time: at,
@@ -236,9 +243,13 @@ impl Engine {
             show_empty_cells: true,
             used_statics: Vec::new(),
         };
+        let _p = crate::app::profile_span("build");
         let prepared = planner.build(at);
+        drop(_p);
         self.incomplete = provider.incomplete;
+        let _p = crate::app::profile_span("draw");
         self.draw(&prepared);
+        drop(_p);
         self.shown = Some(key);
     }
 
@@ -288,6 +299,16 @@ impl Engine {
         }
         self.playback.set_output_size(size.0, size.1);
         if let Some(f) = self.playback.poll() {
+            if crate::app::FRAMES_TO_LOG
+                .try_update(
+                    std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |n| n.checked_sub(1),
+                )
+                .is_ok()
+            {
+                crate::app::profile_event("playing: first frames after the jump");
+            }
             // The compositor scales to the target, so frames planned before
             // a resize still fill it.
             self.ensure_target(size);

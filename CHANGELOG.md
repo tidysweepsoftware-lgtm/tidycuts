@@ -2,6 +2,22 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.4 (instant scrubbing and skimming)
+
+- **Skimming**: while the video is paused, moving the mouse over the timeline shows the picture
+  under it in the player, with a thin line to mark the place, and the playhead stays where it
+  is (like Filmora).
+- Dragging the playhead no longer hitches: the window stopped for about 0.2 s every few steps
+  because a full-quality picture was being decoded for every mouse step. While dragging, only the
+  quick pictures are used; the full-quality one is made when you stop for a moment.
+- **Jumping to any place in a video that has a proxy is now instant** (about 1 ms instead of a
+  quarter of a second or more): the picture is read straight out of the proxy file inside
+  TidyCuts, without starting FFmpeg for it. For videos without a proxy, a jump to a place not yet
+  prepared starts preparing a short stretch right there at once, instead of waiting in the queue.
+- Clicking to a new place while the video is playing shows that place at once, instead of
+  waiting for playing to start there.
+- The panel layout most people use ("Left menus") is now the layout of a new installation.
+
 ## 1.3.3 (smoother scrubbing)
 
 - You can now grab the red playhead and drag it while the video is playing (before, it had to
