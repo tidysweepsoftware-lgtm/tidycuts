@@ -107,7 +107,14 @@ impl VideoParams {
         frames: Option<u32>,
     ) -> Command {
         let mut cmd = tools.ffmpeg_cmd();
-        if self.hwaccel && !self.alpha {
+        // A proxy is a small intra-frame file: the graphics card decoder gains nothing on it,
+        // and starting it costs about 90 ms on every jump (measured: 0.22 s against 0.32 s).
+        let is_proxy = self
+            .path
+            .parent()
+            .and_then(|d| d.file_name())
+            .is_some_and(|n| n == "proxies");
+        if self.hwaccel && !self.alpha && !is_proxy {
             cmd.args(["-hwaccel", "auto"]);
         }
         if start > 0.0 {

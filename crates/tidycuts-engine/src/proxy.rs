@@ -69,6 +69,13 @@ pub fn make_proxy(
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
+    // Below normal priority (and no window): making a proxy must not slow down the
+    // decoding for the picture you are looking at.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000 | 0x0000_4000);
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("Could not start ffmpeg: {e}"))?;
