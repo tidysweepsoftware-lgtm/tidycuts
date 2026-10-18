@@ -21,6 +21,7 @@ mod prefs;
 mod preview;
 mod previews;
 mod proxies;
+mod reframe;
 mod scopes;
 mod sounds;
 mod stills;

@@ -4,11 +4,11 @@
 
 <br><br>
 
-<a href="../../releases/latest/download/TidyCuts-Setup-1.3.4.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
+<a href="../../releases/latest/download/TidyCuts-Setup-1.3.5.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
 
 <sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer): the Mac app is version 1.3.0 for now</sub>
 
-<sub>Version 1.3.4 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
+<sub>Version 1.3.5 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
 
 <br>
 
@@ -65,8 +65,8 @@ optional link that lets an AI assistant edit with you (off until you turn it on)
 
 | Platform | File | For |
 | --- | --- | --- |
-| Windows | [TidyCuts-Setup-1.3.4.exe](../../releases/latest/download/TidyCuts-Setup-1.3.4.exe) | Installer for Windows 10 and 11 |
-| Windows | [TidyCuts-1.3.4-windows-portable.zip](../../releases/latest/download/TidyCuts-1.3.4-windows-portable.zip) | No install: unzip and run |
+| Windows | [TidyCuts-Setup-1.3.5.exe](../../releases/latest/download/TidyCuts-Setup-1.3.5.exe) | Installer for Windows 10 and 11 |
+| Windows | [TidyCuts-1.3.5-windows-portable.zip](../../releases/latest/download/TidyCuts-1.3.5-windows-portable.zip) | No install: unzip and run |
 | Mac | [TidyCuts-1.3.0-macos.dmg](../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.dmg) | Apple silicon, macOS 11 or later |
 | Mac | [TidyCuts-1.3.0-macos.zip](../../releases/download/v1.3.0/TidyCuts-1.3.0-macos.zip) | The same app, if the disk image gives trouble |
 

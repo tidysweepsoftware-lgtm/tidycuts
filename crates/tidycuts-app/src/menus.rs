@@ -397,6 +397,10 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
                 });
             }
             ui.separator();
+            if ui.button("Keyboard Shortcuts").clicked() {
+                app.dialogs.open_shortcuts();
+                ui.close();
+            }
             if ui.button("Take the Tour").clicked() {
                 app.dialogs.open_tour();
                 ui.close();

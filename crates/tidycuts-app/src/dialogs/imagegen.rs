@@ -417,6 +417,7 @@ impl ImageGenDialog {
         let mut go_models = false;
         let mut generate = false;
         let mut add_words = false;
+        let mut more_like = false;
         let mut save = false;
         let mut report: Option<ReportAction> = None;
         let busy = self.busy();
@@ -488,6 +489,19 @@ impl ImageGenDialog {
                             .clicked()
                         {
                             add_words = true;
+                        }
+                        if ui
+                            .add_enabled(
+                                have,
+                                theme::outline_button(format!("{}  More like this", ph::SHUFFLE))
+                                    .min_size(egui::vec2(120.0, 34.0)),
+                            )
+                            .on_hover_text(
+                                "Draws new pictures that copy the look of the one you chose",
+                            )
+                            .clicked()
+                        {
+                            more_like = true;
                         }
                         let ready = !busy && self.can_make();
                         if primary(
@@ -570,6 +584,18 @@ impl ImageGenDialog {
                         Err(e) => self.error = Some(e.to_string()),
                     }
                 }
+            }
+        }
+        if more_like {
+            // The chosen picture becomes the first inspiration picture, and a new set is drawn.
+            match self.keep_selected(app) {
+                Ok(p) => {
+                    self.inspiration.retain(|x| *x != p);
+                    self.inspiration.insert(0, p);
+                    self.inspiration.truncate(3);
+                    self.make(ctx);
+                }
+                Err(e) => self.error = Some(e),
             }
         }
         if add_words {

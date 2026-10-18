@@ -1175,7 +1175,13 @@ impl ExportDialog {
         if (export || keys.enter) && problem.is_none() {
             let settings = self.settings(app);
             let before = app.export_job.as_ref().map(|j| j.started);
+            let queued_before = app.export_queue.len();
             app.start_export(settings);
+            if app.export_queue.len() > queued_before {
+                // Another export is running: this one is queued, and the window is done.
+                app.dialogs.last_export = Some(self.clone());
+                return false;
+            }
             let started = app.export_job.as_ref().map(|j| j.started);
             if started.is_some() && started != before {
                 app.dialogs.progress = Some(ProgressDialog {
@@ -1216,11 +1222,8 @@ pub fn watch_job(app: &mut TidyCutsApp) {
     let Some(job) = &app.export_job else {
         return;
     };
-    let running = job.finished.is_none();
-    if running && app.dialogs.export.is_some() {
-        app.dialogs.show_export_progress();
-        return;
-    }
+    // (An export window opened while another export runs stays open: what is set there
+    // goes into the queue.)
     if let Some((result, _)) = &job.finished {
         if app.dialogs.announced == Some(job.started) {
             return;
@@ -1242,6 +1245,34 @@ pub fn watch_job(app: &mut TidyCutsApp) {
                 app.notify(&text, error);
             }
         }
+    }
+}
+
+/// Says how the finished export went, even when its progress window is open.
+pub fn announce_finished(app: &mut TidyCutsApp) {
+    let Some(job) = &app.export_job else {
+        return;
+    };
+    let Some((result, _)) = &job.finished else {
+        return;
+    };
+    if app.dialogs.announced == Some(job.started) {
+        return;
+    }
+    let name = job
+        .settings
+        .path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let message = match result {
+        Ok(()) => Some((format!("Export finished: {name}"), false)),
+        Err(e) if e.contains("cancelled") => None,
+        Err(e) => Some((format!("Export failed: {e}"), true)),
+    };
+    app.dialogs.announced = Some(job.started);
+    if let Some((text, error)) = message {
+        app.notify(&text, error);
     }
 }
 

@@ -23,6 +23,7 @@ pub mod playback;
 pub mod previews;
 pub mod proxy;
 pub mod proxyfile;
+pub mod reframe;
 pub mod scopes;
 pub mod scrub;
 pub mod snapshot;

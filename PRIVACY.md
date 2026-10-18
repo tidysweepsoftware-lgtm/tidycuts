@@ -1,6 +1,6 @@
 # Privacy policy
 
-*TidyCuts 1.3.4, from TidySweep Software. Last updated 12 October 2026.*
+*TidyCuts 1.3.5, from TidySweep Software. Last updated 12 October 2026.*
 
 **Short version: TidyCuts doesn't collect, send or share any information about
 you. It has no account, no ads and no tracking.**

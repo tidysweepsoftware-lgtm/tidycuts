@@ -9,8 +9,10 @@
 mod about;
 mod captions;
 mod crop;
+mod edit_by_text;
 mod export;
 mod export_preview;
+mod shortcuts;
 pub use export::job_fraction;
 mod imagegen;
 mod import_size;
@@ -45,6 +47,8 @@ pub struct DialogState {
     progress: Option<export::ProgressDialog>,
     crop: Option<crop::CropDialog>,
     about: Option<about::AboutDialog>,
+    edit_by_text: Option<edit_by_text::EditByTextDialog>,
+    shortcuts: Option<shortcuts::ShortcutsDialog>,
     silence: Option<silence::SilenceDialog>,
     tour: Option<tour::TourDialog>,
     updates: Option<updates::UpdatesDialog>,
@@ -124,6 +128,16 @@ impl DialogState {
         self.about = Some(about::AboutDialog);
     }
 
+    /// Edit by Text: the words of a clip, crossed out to cut.
+    pub fn open_edit_by_text(&mut self, clip: ClipId) {
+        self.edit_by_text = Some(edit_by_text::EditByTextDialog::new(clip));
+    }
+
+    /// The list of keyboard shortcuts.
+    pub fn open_shortcuts(&mut self) {
+        self.shortcuts = Some(shortcuts::ShortcutsDialog::default());
+    }
+
     /// Whether a window that should block editing shortcuts is open.
     pub fn is_modal_open(&self) -> bool {
         self.import_size.is_some()
@@ -133,6 +147,8 @@ impl DialogState {
             || self.progress.is_some()
             || self.crop.is_some()
             || self.about.is_some()
+            || self.shortcuts.is_some()
+            || self.edit_by_text.is_some()
             || self.silence.is_some()
             || self.tour.is_some()
             || self.updates.is_some()
@@ -174,6 +190,11 @@ pub fn open_imagegen(app: &mut TidyCutsApp, models: bool) {
     app.dialogs.imagegen = Some(d);
 }
 
+/// Says how the export that just ended went (used when the next one in the queue starts).
+pub fn announce_finished(app: &mut TidyCutsApp) {
+    export::announce_finished(app);
+}
+
 /// Draws whichever windows are open. Called once per frame.
 pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     export::watch_job(app);
@@ -195,6 +216,8 @@ pub fn show(app: &mut TidyCutsApp, ctx: &egui::Context) {
     run!(progress);
     run!(crop);
     run!(about);
+    run!(shortcuts);
+    run!(edit_by_text);
     run!(silence);
     run!(tour);
     run!(updates);

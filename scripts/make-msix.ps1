@@ -1,7 +1,7 @@
 <#
   Builds the Microsoft Store package (.msix) from the Windows program folder.
 
-    pwsh scripts/make-msix.ps1 -Folder dist/TidyCuts -Version 1.3.4 -Out dist
+    pwsh scripts/make-msix.ps1 -Folder dist/TidyCuts -Version 1.3.5 -Out dist
 
   -Folder  the folder that holds TidyCuts.exe and the ffmpeg folder (the same one the
            installer is made from)

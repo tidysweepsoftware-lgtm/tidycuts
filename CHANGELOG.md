@@ -2,6 +2,36 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.5 (edit by text, auto reframe and a safer image generator)
+
+**New**
+- **Edit by Text**: right-click a clip with speech and choose Edit by Text. TidyCuts listens to the
+  clip on your computer and shows every word. Click words to cross them out (Shift-click for a
+  stretch, "Mark ums and uhs" for the fillers) and press Cut: those pieces are taken out of the
+  video and the gaps close, as one undo step.
+- **Auto Reframe to Fill the Screen** (clip right-click menu): turns a wide video into a vertical
+  or square one by zooming in and following what moves, with a calm pan made of keyframes. It looks
+  at the video about 50 times faster than real time.
+- **Export queue**: press Export while another export runs and the new one waits its turn
+  (the top button shows "Exporting 40% (+2)"). Each export uses the project as it was when you queued it.
+- **More like this** in the Image Generator: one click draws new pictures that copy the look of the
+  one you chose.
+- **Keyboard Shortcuts** in the Help menu: every shortcut in one searchable list.
+- **Report** in the Image Generator (Microsoft Store rule 11.16): select a picture, press Report,
+  say what is wrong and send it by email or on GitHub, copy the report, or remove the picture. The
+  window also says that the pictures are drawn by an AI and can be unsuitable.
+- Drop video files from the Desktop straight onto the timeline: they are read and placed where you let go.
+- A trash button on every track header except the main track, to delete a track.
+- Double-click the sound meter to open the audio mixer.
+
+**Fixes and improvements**
+- Ctrl+C, Ctrl+X and Ctrl+V now copy, cut and paste clips on the timeline (before, only the right-click menu worked).
+- **Keep my computer responsive while exporting** (Preferences > Performance, on by default): the
+  export and its helper programs run at a lower priority and pause about a fifth of the time.
+  The timing log now shows where an export spends its time.
+- Auto Enhance no longer treats a face filling the frame as a colour cast, so people stop
+  turning grey and blue.
+
 ## 1.3.4 (instant scrubbing and skimming)
 
 - **Skimming**: while the video is paused, moving the mouse over the timeline shows the picture

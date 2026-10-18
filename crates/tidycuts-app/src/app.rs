@@ -119,6 +119,9 @@ pub struct TidyCutsApp {
     toasts: Vec<Toast>,
     pub ffmpeg_error: Option<String>,
     pub export_job: Option<ExportJob>,
+    /// Exports waiting for the running one to end, each with the project as it was
+    /// when it was queued.
+    pub export_queue: VecDeque<(Project, ExportSettings)>,
 
     pending: Option<Pending>,
     allow_close: bool,
@@ -141,6 +144,8 @@ pub struct TidyCutsApp {
     pub(crate) duck_rx: Receiver<crate::autoduck::Finished>,
     pub(crate) sync_tx: Sender<crate::detection::SyncFinished>,
     pub(crate) sync_rx: Receiver<crate::detection::SyncFinished>,
+    pub(crate) reframe_tx: Sender<crate::reframe::ReframeDone>,
+    pub(crate) reframe_rx: Receiver<crate::reframe::ReframeDone>,
     /// The audio mixer window and its meters.
     pub mixer: crate::mixer::MixerState,
     /// The scopes window (waveform, parade, vectorscope, histogram).
@@ -167,6 +172,7 @@ impl TidyCutsApp {
         let (detect_tx, detect_rx) = channel();
         let (duck_tx, duck_rx) = channel();
         let (sync_tx, sync_rx) = channel();
+        let (reframe_tx, reframe_rx) = channel();
         let (proxy_tx, proxy_rx) = channel();
         let (voice_tx, voice_rx) = channel();
         let (engine, gpu_error) = match &cc.wgpu_render_state {
@@ -224,6 +230,7 @@ impl TidyCutsApp {
             toasts: Vec::new(),
             ffmpeg_error: Tools::get().err().map(|e| e.to_string()),
             export_job: None,
+            export_queue: VecDeque::new(),
             pending: None,
             allow_close: false,
             was_playing: false,
@@ -245,6 +252,8 @@ impl TidyCutsApp {
             duck_rx,
             sync_tx,
             sync_rx,
+            reframe_tx,
+            reframe_rx,
             autosave_written: None,
             recovery: if open.is_empty() {
                 prefs::leftover_autosaves()
@@ -1760,11 +1769,31 @@ impl TidyCutsApp {
 
     pub fn start_export(&mut self, settings: ExportSettings) {
         self.pause();
+        // An export is already running: this one waits its turn, with the project as it is now.
+        if self
+            .export_job
+            .as_ref()
+            .is_some_and(|j| j.finished.is_none())
+        {
+            self.export_queue
+                .push_back((self.project.clone(), settings));
+            let n = self.export_queue.len();
+            self.notify(
+                &format!("Added to the export queue ({n} waiting). It starts when the current export is done."),
+                false,
+            );
+            return;
+        }
+        let project = self.project.clone();
+        self.begin_export(project, settings);
+    }
+
+    /// Starts exporting `project` now.
+    fn begin_export(&mut self, project: Project, settings: ExportSettings) {
         let Some(engine) = &self.engine else {
             self.notify("Exporting needs a graphics device.", true);
             return;
         };
-        let project = self.project.clone();
         let renderer = engine.renderer.clone();
         let analysis = engine.analysis.clone();
         let progress = Arc::new(Mutex::new(ExportProgress::default()));
@@ -1819,6 +1848,18 @@ impl TidyCutsApp {
                 job.finished = Some((r, job.started.elapsed()));
             } else {
                 ctx.request_repaint_after(Duration::from_millis(100));
+            }
+        }
+        // The next export in the queue starts when one ends.
+        if self
+            .export_job
+            .as_ref()
+            .is_some_and(|j| j.finished.is_some())
+            && !self.export_queue.is_empty()
+        {
+            crate::dialogs::announce_finished(self);
+            if let Some((project, settings)) = self.export_queue.pop_front() {
+                self.begin_export(project, settings);
             }
         }
     }
@@ -2180,7 +2221,11 @@ impl TidyCutsApp {
         let label = match &self.export_job {
             Some(j) if busy => {
                 let f = crate::dialogs::job_fraction(j, &self.project);
-                format!("Exporting {:.0}%", f * 100.0)
+                if self.export_queue.is_empty() {
+                    format!("Exporting {:.0}%", f * 100.0)
+                } else {
+                    format!("Exporting {:.0}% (+{})", f * 100.0, self.export_queue.len())
+                }
             }
             _ => "Export".to_string(),
         };
@@ -2782,6 +2827,7 @@ impl eframe::App for TidyCutsApp {
         self.poll_detections();
         self.poll_auto_duck();
         self.poll_syncs();
+        self.poll_reframes();
         self.poll_proxies();
         self.poll_previews();
         self.poll_voiceovers();

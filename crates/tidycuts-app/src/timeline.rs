@@ -3583,6 +3583,17 @@ fn clip_menu(app: &mut TidyCutsApp, ui: &mut Ui, clip: ClipId) {
         if item(ui, "Rotate 90° Clockwise", "", true) {
             app.rotate_selection_90();
         }
+        if item(
+            ui,
+            "Auto Reframe to Fill the Screen",
+            "",
+            is_media && media.as_ref().is_some_and(|m| m.kind == MediaKind::Video),
+        ) {
+            app.start_reframe(clip);
+        }
+    }
+    if item(ui, "Edit by Text…", "", has_sound) {
+        app.dialogs.open_edit_by_text(clip);
     }
     ui.menu_button("Speed", |ui| {
         for s in [0.25, 0.5, 1.0, 1.5, 2.0, 4.0] {
