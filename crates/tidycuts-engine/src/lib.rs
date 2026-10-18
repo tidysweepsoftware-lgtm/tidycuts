@@ -10,6 +10,7 @@ pub mod decode;
 pub mod detect;
 pub mod export;
 pub mod frames;
+pub mod gentle;
 pub mod imagegen;
 pub mod imagegen_service;
 pub mod level_guard;

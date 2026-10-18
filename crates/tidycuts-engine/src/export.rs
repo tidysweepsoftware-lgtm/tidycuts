@@ -785,6 +785,9 @@ pub fn export(
     }
 
     let mut cmd = tools.ffmpeg_cmd();
+    if crate::gentle::on() {
+        tidycuts_media::below_normal(&mut cmd);
+    }
     cmd.arg("-y");
     let video = !s.container.is_audio_only();
     let (w, h) = (s.width.max(2) & !1, s.height.max(2) & !1);
@@ -918,10 +921,14 @@ pub fn export(
             }
             Ok(())
         });
+        // Where the time goes, for the timing log (set TIDYCUTS_PROFILE): picture
+        // work (decoding and planning), graphics card and hand-over, and pauses.
+        let mut spent = [Duration::ZERO; 3];
         for i in 0..total {
             if cancel.load(Ordering::Relaxed) {
                 break;
             }
+            let frame_started = Instant::now();
             let t = range.0 + fps.time_of_frame(i as i64);
             // Start the next clips' decoders early.
             let soon = t + Time::from_secs_f64(1.0);
@@ -964,6 +971,8 @@ pub fn export(
                     comp.store_static(*k, img);
                 }
             }
+            spent[0] += frame_started.elapsed();
+            let gpu_started = Instant::now();
             if let Some(planes) = &planes {
                 // The card starts on this frame while the previous one is
                 // collected; the next frame's decoding overlaps with it too.
@@ -980,6 +989,7 @@ pub fn export(
                     break;
                 }
             }
+            spent[1] += gpu_started.elapsed();
             let el = started.elapsed().as_secs_f64();
             let rate = (i + 1) as f64 / el.max(1e-6);
             progress(ExportProgress {
@@ -991,6 +1001,26 @@ pub fn export(
                     (total - i - 1) as f64 / rate.max(1e-6),
                 )),
             });
+            // Leave the graphics card and the processor a gap now and then, so the
+            // window and other programs keep running smoothly.
+            if crate::gentle::on() {
+                let pause = (frame_started.elapsed() / 4).min(Duration::from_millis(25));
+                std::thread::sleep(pause);
+                spent[2] += pause;
+            }
+            if (i + 1) % 60 == 0 {
+                let n = 60.0;
+                let ms = |d: Duration| d.as_secs_f64() * 1000.0 / n;
+                crate::gentle::log(&format!(
+                    "EXPORT frame {} of {total}: per picture {:.1} ms decoding and planning, {:.1} ms graphics card and hand-over, {:.1} ms pause (keep responsive {})",
+                    i + 1,
+                    ms(spent[0]),
+                    ms(spent[1]),
+                    ms(spent[2]),
+                    if crate::gentle::on() { "on" } else { "off" }
+                ));
+                spent = [Duration::ZERO; 3];
+            }
         }
         if let (Some(planes), Some((slot, index))) = (&planes, pending) {
             let last = comp.read_nv12(&planes[slot], index);

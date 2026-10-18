@@ -102,6 +102,20 @@ impl Tools {
     }
 }
 
+/// Makes a program run at a lower priority than the window, so the computer
+/// stays responsive while it works (Windows; elsewhere it does nothing).
+pub fn below_normal(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
+        cmd.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 /// Stops Windows from flashing a console window for every ffmpeg call.
 pub(crate) fn no_window(cmd: &mut Command) {
     #[cfg(windows)]

@@ -311,6 +311,19 @@ impl PreferencesDialog {
             "When not asking, make proxies of large videos automatically",
         );
         ui.add_space(8.0);
+        widgets::group_title(ui, "Exporting");
+        switch(
+            ui,
+            &mut d.export_gentle,
+            "Keep my computer responsive while exporting",
+        );
+        under_switch(ui, |ui| {
+            widgets::hint(
+                ui,
+                "Exports run a little slower (about a fifth) so the window, the mouse and other programs stay smooth. Turn it off for the fastest export.",
+            );
+        });
+        ui.add_space(8.0);
         widgets::group_title(ui, "Preview");
         field(ui, "Preview quality", |ui| {
             let options: Vec<(PreviewQuality, &str)> = PreviewQuality::ALL

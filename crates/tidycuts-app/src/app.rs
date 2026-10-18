@@ -107,6 +107,9 @@ pub struct TidyCutsApp {
     /// Files being probed, in the order they were picked, so the library
     /// lists them in that order whichever probe finishes first.
     import_order: VecDeque<PathBuf>,
+    /// Files dropped from the desktop onto the timeline that are still being
+    /// read: where to put each one when it is ready.
+    files_for_timeline: Vec<(PathBuf, egui::Pos2)>,
     import_done: HashMap<PathBuf, Result<MediaItem, String>>,
     pub importing: usize,
     /// Media already asked about (keep 4K or downscale), so we ask once.
@@ -154,9 +157,12 @@ pub struct TidyCutsApp {
 
 impl TidyCutsApp {
     pub fn new(cc: &eframe::CreationContext<'_>, open: Vec<PathBuf>) -> Self {
+        profile_event("start-up: window and graphics ready, building the app");
         theme::apply(&cc.egui_ctx);
+        profile_event("start-up: theme applied");
         egui_extras_install(&cc.egui_ctx);
         let prefs = Prefs::load();
+        profile_event("start-up: preferences loaded");
         let (import_tx, import_rx) = channel();
         let (detect_tx, detect_rx) = channel();
         let (duck_tx, duck_rx) = channel();
@@ -174,6 +180,7 @@ impl TidyCutsApp {
                 Some("No graphics device was found, so the preview can't be shown.".to_string()),
             ),
         };
+        profile_event("start-up: engine ready");
         let project = Project {
             settings: prefs.project_defaults.clone(),
             ..Default::default()
@@ -209,6 +216,7 @@ impl TidyCutsApp {
             import_tx,
             import_rx,
             import_order: VecDeque::new(),
+            files_for_timeline: Vec::new(),
             import_done: HashMap::new(),
             importing: 0,
             asked_size: HashSet::new(),
@@ -245,10 +253,13 @@ impl TidyCutsApp {
             },
             prefs,
         };
+        profile_event("start-up: app built");
         app.sync_proxy_pref();
         app.tidy_previews_at_start();
+        profile_event("start-up: previews tidied");
         app.thumbs.cache_dir = Some(app.prefs.cache_dir());
         app.mcp.sync(&app.prefs, &cc.egui_ctx);
+        profile_event("start-up: ready");
         // A project file (e.g. double-clicked) or media passed on the command line.
         match open.as_slice() {
             [p] if is_project_file(p) => app.open_project_at(p),
@@ -738,6 +749,10 @@ impl TidyCutsApp {
             .map(|(_, _, t)| *t);
         self.clipboard = items.into_iter().map(|(k, c, _)| (k, c)).collect();
         if !self.clipboard.is_empty() {
+            // The window only reports a paste when the system clipboard holds
+            // some text, so leave a short note there.
+            self.ctx
+                .copy_text(format!("TidyCuts: {} clip(s)", self.clipboard.len()));
             self.notify(&format!("Copied {} clip(s).", self.clipboard.len()), false);
         }
     }
@@ -1385,7 +1400,17 @@ impl TidyCutsApp {
         // timeline, not on import.
         for item in added {
             self.selected_media = Some(item.id);
+            let (id, path) = (item.id, item.path.clone());
             self.add_imported_media(item);
+            // A file dropped on the timeline goes on it once it is read.
+            if let Some(n) = self.files_for_timeline.iter().position(|(p, _)| *p == path) {
+                let (_, spot) = self.files_for_timeline.remove(n);
+                if spot.x == f32::MAX {
+                    self.add_media_to_timeline(id, None);
+                } else {
+                    timeline::place_media_at(self, id, spot);
+                }
+            }
         }
     }
 
@@ -1747,9 +1772,14 @@ impl TidyCutsApp {
         let (tx, rx) = channel();
         let s = settings.clone();
         let (p2, c2) = (progress.clone(), cancel.clone());
+        let gentle = self.prefs.export_gentle;
         std::thread::Builder::new()
             .name("tidycuts-export".into())
             .spawn(move || {
+                tidycuts_engine::gentle::set(gentle);
+                if gentle {
+                    tidycuts_engine::gentle::lower_this_thread();
+                }
                 let statics = tidycuts_engine::Statics::default();
                 let auto = move |m: &MediaItem| analysis.auto_grade(m);
                 let r = tidycuts_engine::export::export(
@@ -1911,13 +1941,22 @@ impl TidyCutsApp {
         if take(sc(cmd, Key::D)) {
             self.duplicate_selection();
         }
-        if take(sc(cmd, Key::C)) {
+        // The window turns Ctrl+C, Ctrl+X and Ctrl+V into copy, cut and paste
+        // events instead of key presses, so those are what to listen for.
+        let (copy_ev, cut_ev, paste_ev) = ctx.input(|i| {
+            (
+                i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
+                i.events.iter().any(|e| matches!(e, egui::Event::Cut)),
+                i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))),
+            )
+        });
+        if copy_ev || take(sc(cmd, Key::C)) {
             self.copy_selection();
         }
-        if take(sc(cmd, Key::X)) {
+        if cut_ev || take(sc(cmd, Key::X)) {
             self.cut_selection();
         }
-        if take(sc(cmd, Key::V)) {
+        if paste_ev || take(sc(cmd, Key::V)) {
             self.paste();
         }
         if take(sc(cmd, Key::A)) {
@@ -2022,6 +2061,34 @@ impl TidyCutsApp {
             if is_project_file(one) {
                 self.guard(Pending::Open(Some(one.clone())));
                 return;
+            }
+        }
+        // Dropped on the timeline: the files go on it, not only into the library.
+        let at = ctx
+            .input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()))
+            .filter(|p| timeline::over_lanes(self, *p));
+        if let Some(p) = at {
+            let mut first = true;
+            for f in files.iter().filter(|f| f.is_file()) {
+                // Only the first file goes where it was let go; the rest follow it.
+                let spot = if first { p } else { egui::pos2(f32::MAX, p.y) };
+                first = false;
+                match self
+                    .project
+                    .media
+                    .iter()
+                    .find(|m| m.path == *f)
+                    .map(|m| m.id)
+                {
+                    Some(id) => {
+                        if spot.x == f32::MAX {
+                            self.add_media_to_timeline(id, None);
+                        } else {
+                            timeline::place_media_at(self, id, spot);
+                        }
+                    }
+                    None => self.files_for_timeline.push((f.clone(), spot)),
+                }
             }
         }
         self.import_paths(files);
@@ -2472,11 +2539,16 @@ pub(crate) static FRAMES_TO_LOG: std::sync::atomic::AtomicU32 =
     std::sync::atomic::AtomicU32::new(0);
 
 /// One line in the timing log for something that happened (a click, a picture).
+/// The moment the program started (set first thing in `main`).
+pub(crate) fn app_start() -> Instant {
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    *START.get_or_init(Instant::now)
+}
+
 pub(crate) fn profile_event(text: &str) {
     use std::io::Write;
-    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
     let Some(path) = profile_on() else { return };
-    let ms = START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0;
+    let ms = app_start().elapsed().as_secs_f64() * 1000.0;
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -2516,6 +2588,8 @@ impl eframe::App for TidyCutsApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let _prof = profile_frame(self.timeline.scrubbing, self.is_playing());
+        static FIRST: std::sync::Once = std::sync::Once::new();
+        FIRST.call_once(|| profile_event("start-up: first window frame"));
 
         if ctx.input(|i| i.viewport().close_requested()) && self.dirty && !self.allow_close {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);

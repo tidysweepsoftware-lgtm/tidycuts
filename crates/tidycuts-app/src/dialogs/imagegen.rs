@@ -40,6 +40,46 @@ enum Screen {
     /// Choose, download, switch and remove the models.
     Models,
     Make,
+    /// Tell us what is wrong with a picture.
+    Report,
+}
+
+/// Why a picture is being reported (Microsoft Store policy 11.16: people can
+/// report inappropriate content the AI made).
+const REPORT_REASONS: [&str; 6] = [
+    "Sexual or nude content",
+    "Violence or gore",
+    "Hateful, harassing or abusive",
+    "Something that endangers children",
+    "A real person or a copyrighted work",
+    "Something else that is not right",
+];
+
+/// Where reports are sent.
+const REPORT_EMAIL: &str = "tidysweepsoftware@gmail.com";
+const REPORT_ISSUES: &str = "https://github.com/tidysweepsoftware-lgtm/tidycuts/issues/new";
+
+/// Percent-encodes text for a link.
+fn url_encode(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+/// What a person wants to do with the report they filled in.
+#[derive(Clone, Copy)]
+enum ReportAction {
+    Email,
+    Copy,
+    GitHub,
+    Remove,
 }
 
 pub struct ImageGenDialog {
@@ -81,6 +121,9 @@ pub struct ImageGenDialog {
     cancel: Arc<AtomicBool>,
     error: Option<String>,
     work_dir: PathBuf,
+    report_reason: usize,
+    report_note: String,
+    report_prompt: bool,
 }
 
 /// Reads a PNG into a picture for the screen.
@@ -170,6 +213,9 @@ impl ImageGenDialog {
             cancel: Arc::new(AtomicBool::new(false)),
             error: None,
             work_dir: app.prefs.cache_dir().join("imagegen"),
+            report_reason: 0,
+            report_note: String::new(),
+            report_prompt: true,
         }
     }
 
@@ -372,6 +418,7 @@ impl ImageGenDialog {
         let mut generate = false;
         let mut add_words = false;
         let mut save = false;
+        let mut report: Option<ReportAction> = None;
         let busy = self.busy();
         let stop = self.cancel.clone();
         let (_, keys) = window(ctx, "imagegen", 940.0, |ui| {
@@ -381,6 +428,8 @@ impl ImageGenDialog {
                 "Image Thumbnail Generator",
                 if self.screen == Screen::Models {
                     "Choose the models that draw the pictures"
+                } else if self.screen == Screen::Report {
+                    "Tell us what is wrong with this picture"
                 } else {
                     "Describe your thumbnail and get pictures to choose from"
                 },
@@ -391,6 +440,7 @@ impl ImageGenDialog {
                         self.models_screen(ui, &mut use_quality, &mut get, &mut remove)
                     }
                     Screen::Make => self.make_screen(ui, ctx, &mut go_models),
+                    Screen::Report => self.report_screen(ui, &mut report),
                 })
             });
             footer(
@@ -411,11 +461,18 @@ impl ImageGenDialog {
                                 self.screen = Screen::Make;
                             }
                         }
+                    } else if self.screen == Screen::Report {
+                        if secondary(ui, "Back").clicked() {
+                            self.screen = Screen::Make;
+                        }
                     } else {
                         if secondary(ui, "Close").clicked() {
                             close = true;
                         }
                         let have = self.selected.is_some() && !busy;
+                        if secondary(ui, &format!("{}  Report…", ph::FLAG)).clicked() && have {
+                            self.screen = Screen::Report;
+                        }
                         if secondary(ui, &format!("{}  Save picture…", ph::DOWNLOAD_SIMPLE))
                             .clicked()
                             && have
@@ -483,6 +540,9 @@ impl ImageGenDialog {
         if go_models {
             self.screen = Screen::Models;
         }
+        if let Some(action) = report {
+            self.do_report(app, ctx, action);
+        }
         if generate {
             self.make(ctx);
         }
@@ -529,6 +589,161 @@ impl ImageGenDialog {
             self.cancel.store(true, Ordering::Relaxed);
         }
         !done
+    }
+
+    /// The report as plain text.
+    fn report_text(&self) -> String {
+        let (w, h) = imagegen::picture_size(self.shape, self.resolution);
+        let mut t = format!(
+            "TidyCuts AI picture report\nVersion: {}\nProblem: {}\n",
+            env!("CARGO_PKG_VERSION"),
+            REPORT_REASONS[self.report_reason.min(REPORT_REASONS.len() - 1)]
+        );
+        let note = self.report_note.trim();
+        if !note.is_empty() {
+            t.push_str(&format!("Details: {note}\n"));
+        }
+        t.push_str(&format!(
+            "Models: {}   Picture: {w} x {h}   Mode: {}\n",
+            self.quality.id(),
+            if self.mode == 0 {
+                "from an idea"
+            } else {
+                "photo in a scene"
+            }
+        ));
+        if self.report_prompt {
+            t.push_str(&format!("Idea typed: {}\n", self.idea.trim()));
+        }
+        t.push_str("\n(If you can, attach the picture to this report.)\n");
+        t
+    }
+
+    /// Sends, copies or acts on the report.
+    fn do_report(&mut self, app: &mut TidyCutsApp, ctx: &egui::Context, action: ReportAction) {
+        match action {
+            ReportAction::Copy => {
+                ctx.copy_text(self.report_text());
+                app.notify("Copied the report. Paste it into a message to us.", false);
+            }
+            ReportAction::Email | ReportAction::GitHub => {
+                // Links have a length limit: a long idea is cut short here (Copy has it all).
+                let mut text = self.report_text();
+                if text.chars().count() > 1500 {
+                    text = text.chars().take(1500).collect::<String>() + "…";
+                }
+                let subject = "TidyCuts AI picture report";
+                let url = if matches!(action, ReportAction::Email) {
+                    format!(
+                        "mailto:{REPORT_EMAIL}?subject={}&body={}",
+                        url_encode(subject),
+                        url_encode(&text)
+                    )
+                } else {
+                    format!(
+                        "{REPORT_ISSUES}?title={}&body={}",
+                        url_encode(subject),
+                        url_encode(&text)
+                    )
+                };
+                ctx.open_url(egui::OpenUrl::new_tab(url));
+                app.notify(
+                    "Opened your report. Check it and press Send there. Thank you.",
+                    false,
+                );
+            }
+            ReportAction::Remove => {
+                if let Some(i) = self.selected {
+                    if let Some(slot) = self.results.get_mut(i) {
+                        *slot = None;
+                    }
+                    if let Some(t) = self.textures.get_mut(i) {
+                        *t = None;
+                    }
+                    self.selected = None;
+                    self.viewing = None;
+                }
+                self.screen = Screen::Make;
+                app.notify("Removed the picture from this window.", false);
+            }
+        }
+    }
+
+    // ---- the report screen ------------------------------------------------------
+
+    fn report_screen(&mut self, ui: &mut egui::Ui, report: &mut Option<ReportAction>) {
+        widgets::hint(
+            ui,
+            "Pictures are drawn by an AI on your computer, and the AI can get things wrong. If a picture is inappropriate or harmful, tell us what was wrong. We read every report.",
+        );
+        ui.add_space(8.0);
+        let options: Vec<(usize, &str)> = REPORT_REASONS
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (i, *r))
+            .collect();
+        widgets::labeled_row(ui, "What is wrong", 110.0, |ui| {
+            widgets::choice(
+                ui,
+                "imagegen-report-reason",
+                &mut self.report_reason,
+                &options,
+            );
+        });
+        ui.add_space(6.0);
+        ui.add(
+            egui::TextEdit::multiline(&mut self.report_note)
+                .hint_text("Anything else we should know? (optional)")
+                .desired_rows(3)
+                .desired_width(f32::INFINITY),
+        );
+        ui.add_space(6.0);
+        super::switch(
+            ui,
+            &mut self.report_prompt,
+            "Include the idea I typed in the report",
+        );
+        widgets::hint(
+            ui,
+            "The picture itself is not sent unless you attach it. Nothing is sent until you press Send in your email or on the web page.",
+        );
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if ui
+                .add(theme::outline_button(format!(
+                    "{}  Send by email",
+                    ph::ENVELOPE_SIMPLE
+                )))
+                .clicked()
+            {
+                *report = Some(ReportAction::Email);
+            }
+            if ui
+                .add(theme::outline_button(format!("{}  Copy report", ph::COPY)))
+                .clicked()
+            {
+                *report = Some(ReportAction::Copy);
+            }
+            if ui
+                .add(theme::outline_button(format!(
+                    "{}  Report on GitHub",
+                    ph::GITHUB_LOGO
+                )))
+                .clicked()
+            {
+                *report = Some(ReportAction::GitHub);
+            }
+        });
+        ui.add_space(8.0);
+        if ui
+            .add(theme::outline_button(format!(
+                "{}  Remove this picture from the window",
+                ph::TRASH
+            )))
+            .clicked()
+        {
+            *report = Some(ReportAction::Remove);
+        }
     }
 
     /// How many pictures a press makes.
@@ -1086,6 +1301,10 @@ impl ImageGenDialog {
         widgets::hint(
             ui,
             "Pictures have no words on them. Press Add words to put your title on in clear letters.",
+        );
+        widgets::hint(
+            ui,
+            "Pictures are drawn by an AI and can be wrong or not suitable. If one is inappropriate, select it and press Report.",
         );
     }
 }

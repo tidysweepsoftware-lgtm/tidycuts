@@ -12,7 +12,7 @@ pub mod player;
 pub mod probe;
 pub mod speech;
 
-pub use ffmpeg::{FfmpegError, Tools};
+pub use ffmpeg::{below_normal, FfmpegError, Tools};
 pub use frames::{fit_within, grab_frame, RgbaFrame};
 pub use player::{Player, Segment, SegmentKind};
 pub use probe::probe;

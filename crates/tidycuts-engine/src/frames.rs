@@ -406,6 +406,7 @@ impl StreamFrames {
             p.path = media.path.clone();
         }
         p.hwaccel = self.hwaccel;
+        p.low_priority = self.high_quality && crate::gentle::on();
         if let Some(f) = self.pre_filters.get(&clip.id) {
             p.pre_filters = f.clone();
         }

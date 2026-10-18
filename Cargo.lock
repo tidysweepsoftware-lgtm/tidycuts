@@ -3608,6 +3608,7 @@ dependencies = [
  "tidycuts-media",
  "tidycuts-render",
  "wgpu",
+ "windows-sys 0.59.0",
  "zune-core",
  "zune-jpeg",
 ]

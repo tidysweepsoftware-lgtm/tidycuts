@@ -130,6 +130,8 @@ pub struct TimelineState {
     /// Where the mouse is over the timeline while paused: the preview shows
     /// that moment without moving the playhead (skimming).
     pub skim: Option<Time>,
+    /// Where the lanes were drawn last frame (for placing files dropped from the desktop).
+    geometry: Option<(View, Vec<Row>, Rect)>,
     /// The ruler was pressed on the playhead's handle (judged when the button went down,
     /// because during playback the handle has moved on by the time a drag starts).
     pub pressed_on_handle: bool,
@@ -162,6 +164,7 @@ impl Default for TimelineState {
             snap: true,
             scrubbing: false,
             skim: None,
+            geometry: None,
             pressed_on_handle: false,
             fit_requested: false,
             track_size: 1.0,
@@ -405,6 +408,7 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui) {
             (free_bottom, TrackKind::Audio),
         ],
     );
+    app.timeline.geometry = Some((view, rows.clone(), lanes));
     draw_clips(app, ui, lanes, view, &rows);
     interact_lanes(app, ui, lanes, view, &rows, &lanes_resp);
     library_drop(app, ui, lanes, view, &rows, &lanes_resp);
@@ -2039,8 +2043,12 @@ fn track_headers(
             FontId::proportional(15.0),
             theme::TEXT_DIM,
         );
-        // On the right, 10 in and 8 apart: eye (video only), lock, sound.
+        // On the right, 10 in and 8 apart: a trash can (not on the main track), the
+        // eye (video only), lock, sound.
         let mut toggles: Vec<(&str, String, bool, u8)> = Vec::new();
+        if !row.main {
+            toggles.push((ph::TRASH, "Delete track".into(), false, 3));
+        }
         if row.kind == TrackKind::Video {
             toggles.push((
                 if hidden { ph::EYE_SLASH } else { ph::EYE },
@@ -2083,8 +2091,8 @@ fn track_headers(
         ));
         let n = toggles.len();
         for (i, (icon, tip, on, which)) in toggles.into_iter().enumerate() {
-            let centre = egui::pos2(r.right() - 10.0 - 7.5 - (n - 1 - i) as f32 * 23.0, cy);
-            let b = Rect::from_center_size(centre, egui::vec2(22.0, 22.0));
+            let centre = egui::pos2(r.right() - 8.0 - 7.5 - (n - 1 - i) as f32 * 19.0, cy);
+            let b = Rect::from_center_size(centre, egui::vec2(19.0, 22.0));
             let resp = ui.interact(b, Id::new(("track-toggle", row.id, which)), Sense::click());
             let color = if on {
                 if which == 0 {
@@ -2093,7 +2101,11 @@ fn track_headers(
                     theme::DANGER
                 }
             } else if resp.hovered() {
-                theme::TEXT
+                if which == 3 {
+                    theme::DANGER
+                } else {
+                    theme::TEXT
+                }
             } else {
                 theme::TEXT_DIM
             };
@@ -2104,7 +2116,13 @@ fn track_headers(
                 FontId::proportional(15.0),
                 color,
             );
-            if resp.on_hover_text(tip).clicked() {
+            let resp = resp.on_hover_text(tip);
+            if resp.clicked() && which == 3 {
+                app.remove_track(row.id);
+                // The rows change, so draw the headers again from the new list.
+                return;
+            }
+            if resp.clicked() {
                 let id = row.id;
                 app.edit(|p| match p.track_mut(id) {
                     Some(t) => {
@@ -2121,7 +2139,7 @@ fn track_headers(
         }
         // Right-click anywhere on the header for the track's menu.
         let header_resp = ui.interact(
-            Rect::from_min_max(r.min, egui::pos2(r.right() - 80.0, r.bottom())),
+            Rect::from_min_max(r.min, egui::pos2(r.right() - 84.0, r.bottom())),
             Id::new(("track-head", row.id)),
             Sense::click(),
         );
@@ -3810,6 +3828,39 @@ enum DropPlan {
     },
     /// Onto an existing clip (effects, transitions).
     OnClip { clip: ClipId, at_end: bool },
+}
+
+/// Whether `p` is over the timeline's lanes or its ruler (as last drawn).
+pub fn over_lanes(app: &TidyCutsApp, p: Pos2) -> bool {
+    app.timeline.geometry.as_ref().is_some_and(|(_, _, lanes)| {
+        Rect::from_min_max(egui::pos2(lanes.left(), lanes.top() - 40.0), lanes.max).contains(p)
+    })
+}
+
+/// Puts a media file on the timeline where it was let go (a file dropped from
+/// the desktop): on the track and at the time under `p`, or at the end of its
+/// track when that spot can't be worked out.
+pub fn place_media_at(app: &mut TidyCutsApp, media: tidycuts_core::MediaId, p: Pos2) {
+    let plan = app
+        .timeline
+        .geometry
+        .clone()
+        .and_then(|(view, rows, _)| drop_plan(app, view, &rows, p, &LibraryDrag::Media(media)));
+    match plan {
+        Some(DropPlan::Place {
+            track, kind, start, ..
+        }) => {
+            let track = match track {
+                Some(t) => Some(t),
+                None => app.add_track(kind, None),
+            };
+            match track {
+                Some(t) => app.add_media_to_timeline(media, Some((t, start))),
+                None => app.add_media_to_timeline(media, None),
+            }
+        }
+        _ => app.add_media_to_timeline(media, None),
+    }
 }
 
 fn drop_plan(

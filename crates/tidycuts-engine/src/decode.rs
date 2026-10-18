@@ -51,6 +51,8 @@ pub struct VideoParams {
     pub post_filters: Vec<String>,
     /// Scaling quality: bilinear for previews, lanczos for export.
     pub high_quality: bool,
+    /// Run the decoder at a lower priority (exports, so the window stays smooth).
+    pub low_priority: bool,
 }
 
 impl VideoParams {
@@ -70,6 +72,7 @@ impl VideoParams {
             pre_filters: Vec::new(),
             post_filters: Vec::new(),
             high_quality: false,
+            low_priority: false,
         }
     }
 
@@ -144,6 +147,9 @@ impl VideoParams {
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::null())
             .stdin(Stdio::null());
+        if self.low_priority {
+            tidycuts_media::below_normal(&mut cmd);
+        }
         cmd
     }
 

@@ -152,6 +152,8 @@ pub struct Prefs {
     pub auto_proxies: bool,
     /// Ask whether to make a proxy when a large video is put on the timeline.
     pub proxy_ask: bool,
+    /// Keep the computer responsive while exporting (lower priority, small pauses).
+    pub export_gentle: bool,
     pub preview_quality: PreviewQuality,
     /// Where scrub frames are kept; `None` uses the system cache folder.
     pub cache_dir: Option<PathBuf>,
@@ -204,6 +206,7 @@ impl Default for Prefs {
             use_proxies: true,
             auto_proxies: true,
             proxy_ask: true,
+            export_gentle: true,
             preview_quality: PreviewQuality::Auto,
             cache_dir: None,
             cache_limit_gb: 20.0,

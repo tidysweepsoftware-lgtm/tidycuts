@@ -20,5 +20,8 @@ nnnoiseless = { version = "0.5", default-features = false }
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
 realfft = "3"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Threading"] }
+
 [dev-dependencies]
 pollster = "0.4"

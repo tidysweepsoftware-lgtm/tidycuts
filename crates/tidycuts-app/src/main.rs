@@ -53,6 +53,7 @@ fn window_icon() -> Option<egui::IconData> {
 }
 
 fn main() -> eframe::Result<()> {
+    app::app_start();
     prefs::migrate_legacy_folders();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let open_paths: Vec<std::path::PathBuf> = std::env::args_os()

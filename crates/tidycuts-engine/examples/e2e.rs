@@ -234,7 +234,38 @@ fn main() {
         Time::from_secs_f64(cut - 2.0),
         Time::from_secs_f64(cut + 1.0),
     ));
+    if std::env::var("TIDYCUTS_BIG").is_ok() {
+        // A longer, full-size export for measuring how the computer copes.
+        es.width = 1920;
+        es.height = 1080;
+        es.range = None;
+    }
     let cancel = std::sync::atomic::AtomicBool::new(false);
+    // A thread that wants to run every 2 ms shows how smooth the rest of the
+    // computer stays while the export works (set TIDYCUTS_GENTLE=0 to compare).
+    let gentle = std::env::var("TIDYCUTS_GENTLE").map_or(true, |v| v != "0");
+    tidycuts_engine::gentle::set(gentle);
+    if gentle {
+        tidycuts_engine::gentle::lower_this_thread();
+    }
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let s2 = stop.clone();
+    let watcher = std::thread::spawn(move || {
+        let mut worst = Duration::ZERO;
+        let mut over = 0;
+        let mut n = 0;
+        while !s2.load(std::sync::atomic::Ordering::Relaxed) {
+            let t = Instant::now();
+            std::thread::sleep(Duration::from_millis(2));
+            let late = t.elapsed().saturating_sub(Duration::from_millis(2));
+            worst = worst.max(late);
+            if late > Duration::from_millis(20) {
+                over += 1;
+            }
+            n += 1;
+        }
+        (worst, over, n)
+    });
     let started = Instant::now();
     let r = tidycuts_engine::export::export(
         &p,
@@ -246,4 +277,10 @@ fn main() {
         |_| {},
     );
     println!("export: {r:?} in {:?}", started.elapsed());
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let (worst, over, n) = watcher.join().unwrap();
+    println!(
+        "gentle={gentle}: other thread woke {n} times, worst delay {} ms, {over} delays over 20 ms",
+        worst.as_millis()
+    );
 }

@@ -123,6 +123,22 @@ fn hue_variety(pixels: &[[f32; 3]]) -> f32 {
     entropy / (BINS as f32).ln()
 }
 
+/// The share of the picture that is already neutral grey as it stands (walls,
+/// backgrounds, clothes). If a good part is neutral, the light is neutral, so a
+/// warm leaning of the whole picture is the subject (a face filling the frame,
+/// say) and not a colour cast: the balance must leave it alone, or people turn
+/// grey and blue.
+fn neutral_share(pixels: &[[f32; 3]]) -> f32 {
+    if pixels.is_empty() {
+        return 0.0;
+    }
+    let neutral = pixels
+        .iter()
+        .filter(|p| (0.1..=0.9).contains(&luma(**p)) && saturation(**p) < 0.05)
+        .count();
+    neutral as f32 / pixels.len() as f32
+}
+
 /// Colour balance from the picture's own pixels (sRGB, 0..1): the
 /// temperature (within 0.25 either way) and tint (within 0.15) to apply.
 fn balance(pixels: &[[f32; 3]]) -> (f32, f32) {
@@ -190,7 +206,11 @@ fn balance(pixels: &[[f32; 3]]) -> (f32, f32) {
     // neutral. A colourful scene with nothing grey in it (a sunset, a field of
     // flowers) is left almost alone, because its colour is meant.
     let variety = hue_variety(pixels);
-    let trust = ((variety - 0.45) / 0.35).clamp(0.0, 1.0) * 0.6 + 0.1;
+    let mut trust = ((variety - 0.45) / 0.35).clamp(0.0, 1.0) * 0.6 + 0.1;
+    // Plenty of surfaces that are already neutral means the light is neutral: a
+    // warm lean of the rest (a face, wood, a sunset) is what the scene is.
+    let guard = ((neutral_share(pixels) - 0.15) * 3.0).clamp(0.0, 0.85);
+    trust *= 1.0 - guard;
     // Small differences are not worth touching.
     let size = (m[0].ln().abs() + m[2].ln().abs()).min(1.0);
     let gate = ((size - 0.08) / 0.2).clamp(0.0, 1.0);
@@ -504,5 +524,27 @@ mod tests {
     #[test]
     fn too_few_pixels_change_nothing() {
         assert_eq!(grade_from_pixels(&[[0.5; 3]; 10]).temperature, 0.0);
+    }
+    /// A close-up: over half the frame is a face, the rest a neutral wall.
+    fn portrait(t: f32, i: usize) -> [f32; 3] {
+        let v = 0.55 + 0.35 * t;
+        match i % 9 {
+            0..=2 => [v, v * 0.74, v * 0.62],
+            3 | 4 => [v * 0.9, v * 0.68, v * 0.56],
+            _ => [0.2 + 0.2 * t, 0.2 + 0.2 * t, 0.21 + 0.2 * t],
+        }
+    }
+
+    #[test]
+    fn a_face_filling_the_frame_is_not_treated_as_a_colour_cast() {
+        let pic = picture(4000, portrait);
+        assert!(
+            neutral_share(&pic) > 0.3,
+            "neutral found: {}",
+            neutral_share(&pic)
+        );
+        let (t, tint) = balance(&pic);
+        eprintln!("portrait balance: temperature {t:.3}, tint {tint:.3}");
+        assert!(t.abs() < 0.06 && tint.abs() < 0.04, "{t} {tint}");
     }
 }

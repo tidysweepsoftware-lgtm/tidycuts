@@ -84,8 +84,12 @@ pub fn show(app: &mut TidyCutsApp, ui: &mut Ui, rect: Rect, header_h: f32) {
     if resp.clicked() {
         app.mixer.reset_peaks();
     }
+    if resp.double_clicked() {
+        // Double-click: the audio settings (the mixer).
+        app.mixer.open = true;
+    }
     resp.on_hover_text(
-        "Sound level of everything that plays (peak). Click to clear the peak and the red lamps.          \"SAFE\" means the hearing guard is turning loud sound down (Preferences > General > Listening).",
+        "Sound level of everything that plays (peak). Click to clear the peak and the red lamps. Double-click to open the audio settings.          \"SAFE\" means the hearing guard is turning loud sound down (Preferences > General > Listening).",
     );
 
     // The two clip lamps sit in the ruler's height.
