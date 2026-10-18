@@ -10,6 +10,7 @@ MODEL_SHA256=a340acc34baaaa7f985eb664d1435e1c4b5eb320997c747a902349e396da36af
 ORT_VERSION=1.28.3
 ORT_WIN_SHA256=1d6fab48e85f948436af7c8c971d2c145cf224e2c444755dec894f8b0de11a83
 ORT_MAC_SHA256=c436bd9f47dbce6f6311ccc21de97f829b3c862c09d24aa321958cb72f0a1d32
+ORT_LINUX_SHA256=db14e4863bd37893fc59729d986ab2a0d043d10b7d44da1913c4982b7e3d009c
 
 # Automatic captions: the whisper.cpp program (MIT), which runs OpenAI's Whisper (MIT). The
 # program ships with TidyCuts in the whisper-cpp folder. On Windows it is the official build

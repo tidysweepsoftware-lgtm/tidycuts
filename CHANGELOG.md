@@ -24,6 +24,11 @@ All notable changes to TidyCuts are listed here, newest first.
 - A trash button on every track header except the main track, to delete a track.
 - Double-click the sound meter to open the audio mixer.
 
+**Linux**
+- TidyCuts now comes for Linux: an AppImage (any 64-bit distribution), a .deb (Ubuntu, Debian,
+  Linux Mint) and a .tar.gz. They carry FFmpeg, Auto Captions, Studio Voice and the Image
+  Generator (which needs a graphics card with a Vulkan driver).
+
 **Fixes and improvements**
 - Ctrl+C, Ctrl+X and Ctrl+V now copy, cut and paste clips on the timeline (before, only the right-click menu worked).
 - **Keep my computer responsive while exporting** (Preferences > Performance, on by default): the

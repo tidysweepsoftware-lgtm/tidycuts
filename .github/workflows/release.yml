@@ -1,15 +1,16 @@
 name: Installers
 
-# Builds the Windows installer and the Mac disk image. It runs only when started by
-# hand from the Actions tab (Run workflow). Tick "Also make a draft release" to get a
-# draft release with all the files; publishing that draft creates the version tag.
+# Builds the Windows installer, the Mac disk image and the Linux packages (.tar.gz,
+# AppImage and .deb). It runs only when started by hand from the Actions tab (Run
+# workflow). Tick "Also make a draft release" to get a draft release with all the
+# files; publishing that draft creates the version tag.
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: "Which installer to build"
+        description: "Which installer to build (both = Windows, Mac and Linux)"
         type: choice
-        options: [both, windows, mac]
+        options: [both, windows, mac, linux]
         default: both
       make_release:
         description: "Also make a draft release from the files (needs: both)"
@@ -23,7 +24,7 @@ jobs:
   windows:
     name: Windows installer
     # A tag builds both; a hand-started run builds what was chosen.
-    if: ${{ inputs.platform != 'mac' }}
+    if: ${{ inputs.platform == 'both' || inputs.platform == 'windows' }}
     runs-on: windows-latest
     env:
       # Optional: with a code-signing certificate stored as these two secrets (see
@@ -100,7 +101,7 @@ jobs:
 
   ffmpeg-macos:
     name: FFmpeg for the Mac (LGPL)
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'windows' }}
+    if: ${{ inputs.platform == 'both' || inputs.platform == 'mac' }}
     runs-on: macos-latest
     steps:
       - uses: actions/cache@v4
@@ -127,7 +128,7 @@ jobs:
 
   whisper-macos:
     name: whisper.cpp for the Mac (MIT)
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'windows' }}
+    if: ${{ inputs.platform == 'both' || inputs.platform == 'mac' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,7 +161,7 @@ jobs:
 
   sdcpp-macos:
     name: stable-diffusion.cpp for the Mac (MIT)
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platform != 'windows' }}
+    if: ${{ inputs.platform == 'both' || inputs.platform == 'mac' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -203,7 +204,7 @@ jobs:
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     # A Mac app without FFmpeg still works if the person installs it
     # themselves, so a failed FFmpeg build doesn't stop the app.
-    if: ${{ !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.platform != 'windows') }}
+    if: ${{ !cancelled() && (inputs.platform == 'both' || inputs.platform == 'mac') }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -275,11 +276,115 @@ jobs:
             dist/TidyCuts-*-macos.dmg
             dist/TidyCuts-*-macos.zip
 
+  natives-linux:
+    name: whisper.cpp and stable-diffusion.cpp for Linux (MIT)
+    if: ${{ inputs.platform == 'both' || inputs.platform == 'linux' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: The versions to build
+        id: ver
+        run: |
+          echo "whisper=$(grep -m1 '^WHISPER_CPP_TAG=' packaging/voice-assets.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+          echo "sd=$(grep -m1 '^SD_CPP_TAG=' packaging/voice-assets.txt | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: natives-linux
+          key: natives-linux-${{ steps.ver.outputs.whisper }}-${{ steps.ver.outputs.sd }}-1
+      - name: Build tools
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake build-essential git libvulkan-dev libcurl4-openssl-dev
+      # whisper-cli on the processor, with the variants for older and newer processors
+      # inside, so it runs on any 64-bit PC.
+      - name: Build whisper-cli
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "${{ steps.ver.outputs.whisper }}" https://github.com/ggml-org/whisper.cpp
+          cd whisper.cpp
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+            -DGGML_BACKEND_DL=ON -DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=ON \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON "-DCMAKE_INSTALL_RPATH=\$ORIGIN"
+          cmake --build build -j --config Release --target whisper-cli
+          mkdir -p ../natives-linux/whisper-linux
+          cp build/bin/whisper-cli ../natives-linux/whisper-linux/
+          find build -name '*.so*' -exec cp -a {} ../natives-linux/whisper-linux/ \;
+          cp LICENSE ../natives-linux/whisper-linux/WHISPER-CPP-LICENSE.txt
+      # sd-cli and sd-server with Vulkan (NVIDIA, AMD and Intel graphics cards). The shader
+      # compiler comes with the Vulkan SDK from LunarG. If that cannot be had, a build for the
+      # processor is made so the package is still complete (very slow pictures).
+      - name: Build sd-cli and sd-server
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --recursive --branch "${{ steps.ver.outputs.sd }}" https://github.com/leejet/stable-diffusion.cpp
+          cd stable-diffusion.cpp
+          vulkan=OFF
+          if curl -fL -o ../vulkan-sdk.tar.xz https://sdk.lunarg.com/sdk/download/1.3.283.0/linux/vulkansdk-linux-x86_64-1.3.283.0.tar.xz; then
+            tar -xf ../vulkan-sdk.tar.xz -C ..
+            export VULKAN_SDK="$(cd .. && pwd)/1.3.283.0/x86_64"
+            export PATH="$VULKAN_SDK/bin:$PATH"
+            vulkan=ON
+          fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_VULKAN=$vulkan -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j --config Release --target sd-cli sd-server
+          mkdir -p ../natives-linux/sdcpp-linux
+          cp build/bin/sd-cli build/bin/sd-server ../natives-linux/sdcpp-linux/
+          cp LICENSE ../natives-linux/sdcpp-linux/STABLE-DIFFUSION-CPP-LICENSE.txt
+      - run: ./natives-linux/whisper-linux/whisper-cli --help | head -3
+      - run: ./natives-linux/sdcpp-linux/sd-cli --help | head -3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-linux
+          path: natives-linux
+
+  linux:
+    name: Linux packages (tar.gz, AppImage, deb)
+    if: ${{ !cancelled() && (inputs.platform == 'both' || inputs.platform == 'linux') }}
+    needs: [natives-linux]
+    # The oldest long-supported Ubuntu, so the program runs on newer systems too.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libxkbcommon-dev libxkbcommon-x11-dev libgtk-3-dev
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: natives-linux
+          path: natives-linux
+      - run: cargo build --release -p tidycuts-app
+      - name: Make the packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          bash scripts/make-linux-package.sh target/release/tidycuts dist "$version" natives-linux
+      - name: Look inside the packages
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          ls -l dist
+          dpkg-deb --info "dist/tidycuts_${version}_amd64.deb" | head -20
+          dpkg-deb --contents "dist/tidycuts_${version}_amd64.deb" | head -30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TidyCuts-linux-files
+          path: |
+            dist/TidyCuts-*-linux-x86_64.tar.gz
+            dist/TidyCuts-*-linux-x86_64.AppImage
+            dist/tidycuts_*_amd64.deb
+
   release:
     name: Attach to the release
     # Only when started by hand with "Also make a draft release" ticked.
     if: ${{ success() && inputs.make_release && inputs.platform == 'both' }}
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -298,7 +403,7 @@ jobs:
         run: |
           version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
           echo "TAG=v$version" >> "$GITHUB_ENV"
-          (cd out && sha256sum TidyCuts-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          (cd out && sha256sum TidyCuts-* tidycuts_* > SHA256SUMS.txt && cat SHA256SUMS.txt)
           sed -e "s/__VERSION__/$version/g" -e "s#__REPO__#$GITHUB_REPOSITORY#g" .github/release-notes.md > notes.md
       # A draft, so nothing is published until it is reviewed.
       # (Creates the tag too when it doesn't exist yet.)

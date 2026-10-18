@@ -1,7 +1,20 @@
 ## TidyCuts __VERSION__
 
-Instant scrubbing and skimming, optional proxies and a faster Image Generator, in the free and open-source
-video editor for Windows and Mac:
+Edit by Text, Auto Reframe, an export queue, a Report button for AI pictures and now **Linux**, in the free
+and open-source video editor for Windows, Mac and Linux:
+
+- **Edit by Text**: the words of a clip as text. Cross out words (or the ums and uhs) and the matching
+  pieces of the video are cut out and the gaps close.
+- **Auto Reframe to Fill the Screen**: turns a wide video into a vertical or square one and follows what moves.
+- **Export queue**: add another export while one is running; they run one after the other.
+- **Image Generator**: **More like this** draws new pictures in the style of the one you chose, and **Report**
+  lets you flag an inappropriate AI picture (Microsoft Store policy 11.16).
+- **Keyboard Shortcuts** list in the Help menu, drop video files from the Desktop straight onto the timeline,
+  Ctrl+C / Ctrl+X / Ctrl+V on the timeline, a trash button on tracks, double-click the sound meter for the mixer.
+- **Keep my computer responsive while exporting** (on by default), and Auto Enhance no longer turns faces grey.
+- **Linux**: AppImage (any distribution), .deb (Ubuntu, Debian, Mint) and .tar.gz.
+
+From version 1.3.4:
 
 - **Skimming and smooth scrubbing**: move the mouse over a paused timeline to see the picture under
   it without moving the playhead; dragging the playhead no longer hitches, jumps while playing show
