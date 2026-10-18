@@ -172,7 +172,7 @@ jobs:
         id: cache
         with:
           path: sdcpp-macos
-          key: sdcpp-macos-${{ steps.ver.outputs.tag }}
+          key: sdcpp-macos-${{ steps.ver.outputs.tag }}-2
       - name: Build sd-cli (Apple silicon, Metal)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |

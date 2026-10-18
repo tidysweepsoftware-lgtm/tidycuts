@@ -4,9 +4,9 @@
 
 <br><br>
 
-<a href="../../releases/latest/download/TidyCuts-Setup-1.3.5.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.5-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>
+<a href="../../releases/latest/download/TidyCuts-Setup-1.3.5.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.5-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.5-linux-x86_64.AppImage"><img src="docs/images/btn-linux.png" alt="Download TidyCuts for Linux" width="250"></a>
 
-<sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer) &nbsp;·&nbsp; Linux (AppImage, .deb and .tar.gz on the releases page)</sub>
+<sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer) &nbsp;·&nbsp; Linux 64-bit (AppImage, .deb and .tar.gz: <a href="../../releases/latest">all Linux downloads</a>)</sub>
 
 <sub>Version 1.3.5 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
 
