@@ -308,7 +308,7 @@ jobs:
             -DGGML_BACKEND_DL=ON -DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=ON \
             -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON \
             -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON "-DCMAKE_INSTALL_RPATH=\$ORIGIN"
-          cmake --build build -j --config Release --target whisper-cli
+          cmake --build build --parallel 3 --config Release --target whisper-cli
           mkdir -p ../natives-linux/whisper-linux
           cp build/bin/whisper-cli ../natives-linux/whisper-linux/
           find build -name '*.so*' -exec cp -a {} ../natives-linux/whisper-linux/ \;
@@ -329,7 +329,7 @@ jobs:
             vulkan=ON
           fi
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_VULKAN=$vulkan -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF
-          cmake --build build -j --config Release --target sd-cli sd-server
+          cmake --build build --parallel 3 --config Release --target sd-cli sd-server
           mkdir -p ../natives-linux/sdcpp-linux
           cp build/bin/sd-cli build/bin/sd-server ../natives-linux/sdcpp-linux/
           cp LICENSE ../natives-linux/sdcpp-linux/STABLE-DIFFUSION-CPP-LICENSE.txt
