@@ -1301,7 +1301,7 @@ impl ProgressDialog {
         let mut cancel = false;
         let mut back = false;
         let mut open_folder = false;
-        let (_, keys) = window(ctx, "export-progress", 560.0, |ui| {
+        let (_, keys) = window(ctx, "export-progress", 680.0, |ui| {
             let (icon, title) = match &finished {
                 None if cancelling => (ph::HOURGLASS, "Cancelling…"),
                 None => (ph::EXPORT, "Exporting"),
