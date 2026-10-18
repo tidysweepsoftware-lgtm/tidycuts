@@ -291,12 +291,15 @@ jobs:
         id: cache
         with:
           path: natives-linux
-          key: natives-linux-${{ steps.ver.outputs.whisper }}-${{ steps.ver.outputs.sd }}-1
+          key: natives-linux-${{ steps.ver.outputs.whisper }}-${{ steps.ver.outputs.sd }}-2
       - name: Build tools
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
+          # The Vulkan SDK (with its shader compiler, glslc) from LunarG's package source.
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc > /dev/null
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake build-essential git libvulkan-dev libcurl4-openssl-dev
+          sudo apt-get install -y --no-install-recommends cmake build-essential git libcurl4-openssl-dev vulkan-sdk || sudo apt-get install -y --no-install-recommends cmake build-essential git libcurl4-openssl-dev libvulkan-dev
       # whisper-cli on the processor, with the variants for older and newer processors
       # inside, so it runs on any 64-bit PC.
       - name: Build whisper-cli
@@ -322,12 +325,8 @@ jobs:
           git clone --depth 1 --recursive --branch "${{ steps.ver.outputs.sd }}" https://github.com/leejet/stable-diffusion.cpp
           cd stable-diffusion.cpp
           vulkan=OFF
-          if curl -fL -o ../vulkan-sdk.tar.xz https://sdk.lunarg.com/sdk/download/1.3.283.0/linux/vulkansdk-linux-x86_64-1.3.283.0.tar.xz; then
-            tar -xf ../vulkan-sdk.tar.xz -C ..
-            export VULKAN_SDK="$(cd .. && pwd)/1.3.283.0/x86_64"
-            export PATH="$VULKAN_SDK/bin:$PATH"
-            vulkan=ON
-          fi
+          if command -v glslc > /dev/null 2>&1; then vulkan=ON; fi
+          echo "Vulkan build: $vulkan"
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DSD_VULKAN=$vulkan -DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF
           cmake --build build --parallel 3 --config Release --target sd-cli sd-server
           mkdir -p ../natives-linux/sdcpp-linux
