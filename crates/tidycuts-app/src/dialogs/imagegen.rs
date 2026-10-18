@@ -652,29 +652,29 @@ impl ImageGenDialog {
                 ctx.copy_text(self.report_text());
                 app.notify("Copied the report. Paste it into a message to us.", false);
             }
-            ReportAction::Email | ReportAction::GitHub => {
+            ReportAction::Email => {
+                // Many computers have no mail program set up, so the report goes on the
+                // clipboard and the address is shown: paste it into a message.
+                ctx.copy_text(format!("To: {REPORT_EMAIL}\n{}", self.report_text()));
+                app.notify(
+                    &format!("The report is copied. Paste it into an email to {REPORT_EMAIL}."),
+                    false,
+                );
+            }
+            ReportAction::GitHub => {
                 // Links have a length limit: a long idea is cut short here (Copy has it all).
                 let mut text = self.report_text();
                 if text.chars().count() > 1500 {
                     text = text.chars().take(1500).collect::<String>() + "…";
                 }
-                let subject = "TidyCuts AI picture report";
-                let url = if matches!(action, ReportAction::Email) {
-                    format!(
-                        "mailto:{REPORT_EMAIL}?subject={}&body={}",
-                        url_encode(subject),
-                        url_encode(&text)
-                    )
-                } else {
-                    format!(
-                        "{REPORT_ISSUES}?title={}&body={}",
-                        url_encode(subject),
-                        url_encode(&text)
-                    )
-                };
+                let url = format!(
+                    "{REPORT_ISSUES}?title={}&body={}",
+                    url_encode("TidyCuts AI picture report"),
+                    url_encode(&text)
+                );
                 ctx.open_url(egui::OpenUrl::new_tab(url));
                 app.notify(
-                    "Opened your report. Check it and press Send there. Thank you.",
+                    "Opened your report. Check it and press Submit there. Thank you.",
                     false,
                 );
             }
@@ -731,13 +731,13 @@ impl ImageGenDialog {
         );
         widgets::hint(
             ui,
-            "The picture itself is not sent unless you attach it. Nothing is sent until you press Send in your email or on the web page.",
+            "The picture itself is not sent unless you attach it. \"Email it to us\" copies the report; paste it into a message to tidysweepsoftware@gmail.com. \"Report on GitHub\" opens a page where you press Submit.",
         );
         ui.add_space(10.0);
         ui.horizontal(|ui| {
             if ui
                 .add(theme::outline_button(format!(
-                    "{}  Send by email",
+                    "{}  Email it to us",
                     ph::ENVELOPE_SIMPLE
                 )))
                 .clicked()

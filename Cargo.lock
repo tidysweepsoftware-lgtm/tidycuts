@@ -3579,6 +3579,7 @@ dependencies = [
  "tidycuts-render",
  "tidycuts-sounds",
  "uuid",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

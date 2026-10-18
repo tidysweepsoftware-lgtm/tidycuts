@@ -1130,7 +1130,9 @@ fn handle_scroll_and_zoom(app: &mut TidyCutsApp, ui: &mut Ui, body: Rect, lanes:
     let hovering = ui
         .ctx()
         .pointer_hover_pos()
-        .is_some_and(|p| body.contains(p));
+        .is_some_and(|p| body.contains(p))
+        // A window (shortcuts, settings…) over the timeline keeps its own scrolling.
+        && !app.dialogs.is_modal_open();
     if hovering {
         let (scroll, zoom, pointer, mods) = ui.ctx().input(|i| {
             (

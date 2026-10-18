@@ -2105,8 +2105,10 @@ impl TidyCutsApp {
             }
         }
         // Dropped on the timeline: the files go on it, not only into the library.
-        let at = ctx
-            .input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos()))
+        // (While files are dragged in from outside, the window gets no mouse
+        // positions, so Windows is asked where the mouse is.)
+        let at = cursor_in_window(ctx)
+            .or_else(|| ctx.input(|i| i.pointer.hover_pos().or(i.pointer.latest_pos())))
             .filter(|p| timeline::over_lanes(self, *p));
         if let Some(p) = at {
             let mut first = true;
@@ -2614,6 +2616,31 @@ impl Drop for ProfileSpan {
         if let Some((_, spans)) = PROFILE.lock().unwrap().as_mut() {
             spans.push((self.0, ms));
         }
+    }
+}
+
+/// Where the mouse is, in the window's own points (Windows only).
+fn cursor_in_window(ctx: &egui::Context) -> Option<egui::Pos2> {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        let mut pt = POINT { x: 0, y: 0 };
+        // SAFETY: `pt` is a valid place for the call to write the position to.
+        if unsafe { GetCursorPos(&mut pt) } == 0 {
+            return None;
+        }
+        let ppp = ctx.pixels_per_point();
+        let inner = ctx.input(|i| i.viewport().inner_rect)?;
+        Some(egui::pos2(
+            pt.x as f32 / ppp - inner.min.x,
+            pt.y as f32 / ppp - inner.min.y,
+        ))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = ctx;
+        None
     }
 }
 

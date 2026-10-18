@@ -8,6 +8,9 @@ publish.workspace = true
 name = "tidycuts"
 path = "src/main.rs"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
 [dependencies]
 tidycuts-core.workspace = true
 tidycuts-media.workspace = true

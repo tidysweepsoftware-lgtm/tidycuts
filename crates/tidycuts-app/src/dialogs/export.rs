@@ -1296,6 +1296,7 @@ impl ProgressDialog {
         let cancelling = job.cancel.load(Ordering::Relaxed);
         let finished = job.finished.as_ref().map(|(r, d)| (r.clone(), *d));
         let mut hide = false;
+        let mut another = false;
         let mut close = false;
         let mut cancel = false;
         let mut back = false;
@@ -1442,6 +1443,10 @@ impl ProgressDialog {
                         if r.clicked() {
                             cancel = true;
                         }
+                        if secondary(ui, &format!("{}  Add another export…", ph::PLUS)).clicked()
+                        {
+                            another = true;
+                        }
                         if secondary(ui, "Hide").clicked() {
                             hide = true;
                         }
@@ -1469,6 +1474,12 @@ impl ProgressDialog {
             if let Err(e) = reveal(&s.path) {
                 app.notify(&format!("Couldn't open the folder: {e}"), true);
             }
+        }
+        if another && finished.is_none() {
+            // The settings window opens; what is set there waits in the queue.
+            app.dialogs
+                .open_export(&app.project, &app.prefs, app.project_path.as_deref());
+            return false;
         }
         match finished {
             None => !(hide || keys.escape),
