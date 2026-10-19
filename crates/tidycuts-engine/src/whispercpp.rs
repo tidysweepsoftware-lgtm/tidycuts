@@ -229,15 +229,32 @@ pub fn download_model(cancel: &AtomicBool, mut progress: impl FnMut(f64)) -> Res
     std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
     let part = dest.with_extension("part");
     let mut last_error = String::from("The download did not start.");
-    for url in MODEL_URLS {
-        let _ = std::fs::remove_file(&part);
-        let mut cmd = std::process::Command::new("curl");
-        cmd.args(["-L", "--fail", "-sS", "--retry", "3", "-o"])
-            .arg(&part)
-            .arg(url)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null());
+    for (n, url) in MODEL_URLS.into_iter().enumerate() {
+        // The first address carries on from what an earlier try got (a download that was
+        // interrupted); the second starts afresh.
+        if n > 0 {
+            let _ = std::fs::remove_file(&part);
+        }
+        let mut cmd = tidycuts_media::curl();
+        cmd.args([
+            "-L",
+            "--fail",
+            "-sS",
+            "-C",
+            "-",
+            "--connect-timeout",
+            "30",
+            "--retry",
+            "5",
+            "--retry-delay",
+            "3",
+            "-o",
+        ])
+        .arg(&part)
+        .arg(url)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -267,12 +284,21 @@ pub fn download_model(cancel: &AtomicBool, mut progress: impl FnMut(f64)) -> Res
             if let Some(mut e) = child.0.stderr.take() {
                 let _ = std::io::Read::read_to_string(&mut e, &mut msg);
             }
-            last_error = format!("Could not download the speech model ({}).", msg.trim());
+            last_error = if msg.contains("resolve host") || msg.contains("Could not connect") {
+                "There is no internet connection to download the speech model. Connect and press Download again: it carries on from where it stopped.".to_string()
+            } else {
+                format!(
+                    "Could not download the speech model ({}). Press Download again to carry on.",
+                    msg.trim()
+                )
+            };
             continue;
         }
         let size = std::fs::metadata(&part).map_or(0, |m| m.len());
         if size != MODEL_BYTES {
-            last_error = "The downloaded speech model is incomplete.".into();
+            last_error =
+                "The downloaded speech model is incomplete. Press Download again to carry on."
+                    .into();
             continue;
         }
         if sha256_file(&part).map_err(|e| e.to_string())? != MODEL_SHA256 {

@@ -1,5 +1,7 @@
 ## TidyCuts __VERSION__
 
+Voiceovers now use the Windows voices directly (no PowerShell needed) and the optional AI downloads are more robust. Everything from 1.3.5 is included:
+
 Edit by Text, Auto Reframe, an export queue, a Report button for AI pictures and now **Linux**, in the free
 and open-source video editor for Windows, Mac and Linux:
 

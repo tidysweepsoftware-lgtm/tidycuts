@@ -87,7 +87,7 @@ pub fn read_answer(json: &str, current: &str) -> Result<Answer, String> {
 
 /// Asks GitHub, using the `curl` program every Windows 10/11 and Mac has.
 fn fetch() -> Result<Answer, String> {
-    let mut cmd = std::process::Command::new("curl");
+    let mut cmd = tidycuts_media::curl();
     cmd.args([
         "-s",
         "-m",

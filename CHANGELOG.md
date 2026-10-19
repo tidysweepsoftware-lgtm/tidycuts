@@ -2,6 +2,17 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.6 (voiceovers without PowerShell, downloads that carry on)
+
+- **Add Voiceover** now uses the Windows voices directly instead of starting PowerShell. It works on
+  computers that block PowerShell (work and test computers, Windows in S mode), finds the voices in
+  about 10 ms instead of about a second, and when there is no voice it says how to add one (with a
+  button that opens the Windows speech settings). No download is needed for voiceovers.
+- Downloads of the optional AI files (the 574 MB speech model for Auto Captions, the picture models,
+  update checks) start curl by its full path in the Windows folder, so they also work in a packaged
+  app with a short search path. The speech model download now carries on after a break (press Download
+  again), gives up quickly when there is no connection, and says so in plain words.
+
 ## 1.3.5 (edit by text, auto reframe and a safer image generator)
 
 **New**

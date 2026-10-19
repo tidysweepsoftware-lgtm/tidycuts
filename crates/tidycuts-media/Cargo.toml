@@ -12,3 +12,6 @@ thiserror.workspace = true
 log.workspace = true
 cpal = "0.18"
 crossbeam-channel = "0.5"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Speech", "Win32_System_Com"] }

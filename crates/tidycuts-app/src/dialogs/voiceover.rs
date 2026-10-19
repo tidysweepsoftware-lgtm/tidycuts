@@ -64,12 +64,21 @@ impl VoiceoverDialog {
                         ui.label(RichText::new("Looking for voices…").color(theme::TEXT_DIM));
                     }
                     Some(list) if list.is_empty() => {
-                        ui.label(
-                            RichText::new(
-                                "No voices were found. On Linux, install eSpeak NG (espeak-ng).",
-                            )
-                            .color(theme::WARNING),
-                        );
+                        let text = if cfg!(windows) {
+                            "No voices were found on this computer. Windows has its own voices (no download from TidyCuts): add one in Windows Settings > Time & language > Speech."
+                        } else if cfg!(target_os = "macos") {
+                            "No voices were found on this computer."
+                        } else {
+                            "No voices were found. Install eSpeak NG (espeak-ng)."
+                        };
+                        ui.add(egui::Label::new(RichText::new(text).color(theme::WARNING)).wrap());
+                        if cfg!(windows)
+                            && ui
+                                .add(theme::outline_button("Open the Windows speech settings"))
+                                .clicked()
+                        {
+                            ctx.open_url(egui::OpenUrl::new_tab("ms-settings:speech"));
+                        }
                     }
                     Some(list) => {
                         let current = list

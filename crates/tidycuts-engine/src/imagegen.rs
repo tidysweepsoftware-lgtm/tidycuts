@@ -303,7 +303,7 @@ fn run_curl(
     cancel: &AtomicBool,
     mut progress: impl FnMut(u64),
 ) -> Result<(), String> {
-    let mut cmd = std::process::Command::new("curl");
+    let mut cmd = tidycuts_media::curl();
     cmd.args(["-L", "--fail", "-sS", "--retry", "3", "-C", "-", "-o"])
         .arg(part)
         .arg(f.url)

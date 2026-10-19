@@ -121,7 +121,7 @@ fn server_file() -> Option<PathBuf> {
 
 /// One call to the background program, with curl (which TidyCuts already uses).
 fn call(method: &str, url: &str, body: Option<&Path>, secs: u32) -> Result<Value, String> {
-    let mut cmd = std::process::Command::new("curl");
+    let mut cmd = tidycuts_media::curl();
     cmd.args(["-sS", "-m", &secs.to_string(), "-X", method])
         .args(["-H", "Content-Type: application/json"]);
     if let Some(b) = body {

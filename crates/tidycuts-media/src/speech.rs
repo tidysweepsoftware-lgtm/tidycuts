@@ -40,6 +40,18 @@ fn command(program: &str) -> Command {
 /// system has no speech program.
 pub fn voices() -> Vec<Voice> {
     let mut list = if cfg!(windows) {
+        // The system's speech interface first: it starts no other program. PowerShell
+        // is the fallback for a computer where that does not work.
+        #[cfg(windows)]
+        {
+            if let Ok(found) = crate::sapi::voices() {
+                if !found.is_empty() {
+                    let mut found = found;
+                    found.sort_by_key(|v| (!v.language.starts_with("en"), v.name.to_lowercase()));
+                    return found;
+                }
+            }
+        }
         let script = "Add-Type -AssemblyName System.Speech; \
             $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \
             $s.GetInstalledVoices() | ForEach-Object { $_.VoiceInfo.Name + '|' + $_.VoiceInfo.Culture.Name }";
@@ -196,6 +208,26 @@ fn run_with_input(mut cmd: Command, text: &str) -> Result<(), String> {
 /// The text, voice and file travel in environment variables, so none of them
 /// is ever part of the script.
 fn speak_windows(text: &str, voice: &str, speed: f64, out: &Path) -> Result<(), String> {
+    let first = {
+        #[cfg(windows)]
+        {
+            crate::sapi::speak(text, voice, windows_rate(speed), out)
+        }
+        #[cfg(not(windows))]
+        {
+            Err::<(), String>(String::new())
+        }
+    };
+    if first.is_ok()
+        && std::fs::metadata(out)
+            .map(|m| m.len() > 44)
+            .unwrap_or(false)
+    {
+        return Ok(());
+    }
+    if let Err(e) = &first {
+        log::warn!("speech through SAPI failed ({e}); trying PowerShell");
+    }
     let script = "Add-Type -AssemblyName System.Speech; \
         $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \
         if ($env:TC_VOICE) { $s.SelectVoice($env:TC_VOICE) }; \
