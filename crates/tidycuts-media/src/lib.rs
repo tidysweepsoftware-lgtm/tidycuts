@@ -6,6 +6,7 @@
 //! talks to them over pipes.
 
 pub mod audio;
+pub mod download;
 pub mod ffmpeg;
 pub mod frames;
 pub mod player;
@@ -14,6 +15,7 @@ pub mod probe;
 mod sapi;
 pub mod speech;
 
+pub use download::download_resume;
 pub use ffmpeg::{below_normal, FfmpegError, Tools};
 
 /// The program that downloads files (curl, which comes with Windows 10 and 11, macOS and most

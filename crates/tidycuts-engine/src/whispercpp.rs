@@ -235,64 +235,33 @@ pub fn download_model(cancel: &AtomicBool, mut progress: impl FnMut(f64)) -> Res
         if n > 0 {
             let _ = std::fs::remove_file(&part);
         }
-        let mut cmd = tidycuts_media::curl();
-        cmd.args([
-            "-L",
-            "--fail",
-            "-sS",
-            "-C",
-            "-",
-            "--connect-timeout",
-            "30",
-            "--retry",
-            "5",
-            "--retry-delay",
-            "3",
-            "-o",
-        ])
-        .arg(&part)
-        .arg(url)
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0800_0000);
-        }
-        let mut child =
-            KillOnDrop(cmd.spawn().map_err(|_| {
-                "Could not start the program that downloads files (curl).".to_string()
-            })?);
-        let status = loop {
-            if cancel.load(Ordering::Relaxed) {
-                let _ = std::fs::remove_file(&part);
-                return Err("Cancelled.".into());
-            }
-            match child.0.try_wait() {
-                Ok(Some(s)) => break s,
-                Ok(None) => {
-                    let got = std::fs::metadata(&part).map_or(0, |m| m.len());
-                    progress((got as f64 / MODEL_BYTES as f64).clamp(0.0, 0.99));
-                    std::thread::sleep(std::time::Duration::from_millis(250));
+        let have = std::fs::metadata(&part).map_or(0, |m| m.len());
+        if have != MODEL_BYTES {
+            let res = tidycuts_media::download_resume(url, &part, cancel, |got| {
+                progress((got as f64 / MODEL_BYTES as f64).clamp(0.0, 0.99));
+            });
+            match res {
+                Ok(()) => {}
+                Err(e) if e == "Cancelled." => {
+                    let _ = std::fs::remove_file(&part);
+                    return Err(e);
                 }
-                Err(e) => return Err(e.to_string()),
+                Err(msg) => {
+                    last_error = if msg.contains("resolve host")
+                        || msg.contains("Could not connect")
+                    {
+                        "There is no internet connection to download the speech model. Connect and press Download again: it carries on from where it stopped.".to_string()
+                    } else if msg.starts_with("Could not write") {
+                        msg
+                    } else {
+                        format!(
+                            "Could not download the speech model ({}). Press Download again to carry on.",
+                            msg.trim()
+                        )
+                    };
+                    continue;
+                }
             }
-        };
-        if !status.success() {
-            let mut msg = String::new();
-            if let Some(mut e) = child.0.stderr.take() {
-                let _ = std::io::Read::read_to_string(&mut e, &mut msg);
-            }
-            last_error = if msg.contains("resolve host") || msg.contains("Could not connect") {
-                "There is no internet connection to download the speech model. Connect and press Download again: it carries on from where it stopped.".to_string()
-            } else {
-                format!(
-                    "Could not download the speech model ({}). Press Download again to carry on.",
-                    msg.trim()
-                )
-            };
-            continue;
         }
         let size = std::fs::metadata(&part).map_or(0, |m| m.len());
         if size != MODEL_BYTES {

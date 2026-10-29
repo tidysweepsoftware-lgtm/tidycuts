@@ -4,11 +4,11 @@
 
 <br><br>
 
-<a href="../../releases/latest/download/TidyCuts-Setup-1.3.6.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.6-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.6-linux-x86_64.AppImage"><img src="docs/images/btn-linux.png" alt="Download TidyCuts for Linux" width="250"></a>
+<a href="../../releases/latest/download/TidyCuts-Setup-1.3.7.exe"><img src="docs/images/btn-windows.png" alt="Download TidyCuts for Windows" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.7-macos.dmg"><img src="docs/images/btn-mac.png" alt="Download TidyCuts for Mac" width="250"></a>&nbsp;&nbsp;&nbsp;<a href="../../releases/latest/download/TidyCuts-1.3.7-linux-x86_64.AppImage"><img src="docs/images/btn-linux.png" alt="Download TidyCuts for Linux" width="250"></a>
 
 <sub>Windows 10 and 11 &nbsp;·&nbsp; Mac with Apple silicon (M1 or newer) &nbsp;·&nbsp; Linux 64-bit (AppImage, .deb and .tar.gz: <a href="../../releases/latest">all Linux downloads</a>)</sub>
 
-<sub>Version 1.3.6 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
+<sub>Version 1.3.7 · Free · No account · <a href="../../releases/latest">All downloads, including a portable Windows version</a></sub>
 
 <br>
 
@@ -65,13 +65,13 @@ optional link that lets an AI assistant edit with you (off until you turn it on)
 
 | Platform | File | For |
 | --- | --- | --- |
-| Windows | [TidyCuts-Setup-1.3.6.exe](../../releases/latest/download/TidyCuts-Setup-1.3.6.exe) | Installer for Windows 10 and 11 |
-| Windows | [TidyCuts-1.3.6-windows-portable.zip](../../releases/latest/download/TidyCuts-1.3.6-windows-portable.zip) | No install: unzip and run |
-| Mac | [TidyCuts-1.3.6-macos.dmg](../../releases/latest/download/TidyCuts-1.3.6-macos.dmg) | Apple silicon, macOS 11 or later |
-| Mac | [TidyCuts-1.3.6-macos.zip](../../releases/latest/download/TidyCuts-1.3.6-macos.zip) | The same app, if the disk image gives trouble |
-| Linux | [TidyCuts-1.3.6-linux-x86_64.AppImage](../../releases/latest/download/TidyCuts-1.3.6-linux-x86_64.AppImage) | Any 64-bit distribution: make it executable and run it |
-| Linux | [tidycuts_1.3.6_amd64.deb](../../releases/latest/download/tidycuts_1.3.6_amd64.deb) | Ubuntu, Debian, Linux Mint and the like |
-| Linux | [TidyCuts-1.3.6-linux-x86_64.tar.gz](../../releases/latest/download/TidyCuts-1.3.6-linux-x86_64.tar.gz) | No install: unpack and run `./tidycuts` |
+| Windows | [TidyCuts-Setup-1.3.7.exe](../../releases/latest/download/TidyCuts-Setup-1.3.7.exe) | Installer for Windows 10 and 11 |
+| Windows | [TidyCuts-1.3.7-windows-portable.zip](../../releases/latest/download/TidyCuts-1.3.7-windows-portable.zip) | No install: unzip and run |
+| Mac | [TidyCuts-1.3.7-macos.dmg](../../releases/latest/download/TidyCuts-1.3.7-macos.dmg) | Apple silicon, macOS 11 or later |
+| Mac | [TidyCuts-1.3.7-macos.zip](../../releases/latest/download/TidyCuts-1.3.7-macos.zip) | The same app, if the disk image gives trouble |
+| Linux | [TidyCuts-1.3.7-linux-x86_64.AppImage](../../releases/latest/download/TidyCuts-1.3.7-linux-x86_64.AppImage) | Any 64-bit distribution: make it executable and run it |
+| Linux | [tidycuts_1.3.7_amd64.deb](../../releases/latest/download/tidycuts_1.3.7_amd64.deb) | Ubuntu, Debian, Linux Mint and the like |
+| Linux | [TidyCuts-1.3.7-linux-x86_64.tar.gz](../../releases/latest/download/TidyCuts-1.3.7-linux-x86_64.tar.gz) | No install: unpack and run `./tidycuts` |
 
 FFmpeg is included. Checksums for every file are on the [releases page](../../releases/latest).
 Intel Macs are not supported yet.

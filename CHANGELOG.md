@@ -2,6 +2,14 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.7 (downloads written by TidyCuts itself)
+
+- The picture-model and speech-model downloads no longer let a separate program write the file:
+  curl only fetches, and TidyCuts writes it. This fixes the Microsoft Store version showing
+  "curl: (23) client returned ERROR on write" when downloading the Image Generator models.
+- A full disk or a blocked folder is now reported in plain words with the folder name, and a dropped
+  connection is picked up again by itself and carries on from where it stopped.
+
 ## 1.3.6 (voiceovers without PowerShell, downloads that carry on)
 
 - **Add Voiceover** now uses the Windows voices directly instead of starting PowerShell. It works on

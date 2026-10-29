@@ -5,13 +5,13 @@ Download the file for your computer from the
 
 | File | For |
 | --- | --- |
-| `TidyCuts-Setup-1.3.6.exe` | Windows 10 and 11, 64-bit. The installer. Best for most people. |
-| `TidyCuts-1.3.6-windows-portable.zip` | Windows. No installing: unzip it anywhere and run `TidyCuts.exe`. |
-| `TidyCuts-1.3.6-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. |
-| `TidyCuts-1.3.6-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
-| `TidyCuts-1.3.6-linux-x86_64.AppImage` | Linux, any 64-bit distribution (Ubuntu, Debian, Fedora, Arch, Mint, openSUSE...). |
-| `tidycuts_1.3.6_amd64.deb` | Linux: Ubuntu, Debian, Linux Mint and other distributions that use .deb packages. |
-| `TidyCuts-1.3.6-linux-x86_64.tar.gz` | Linux, no install: unpack it anywhere and run `./tidycuts`. |
+| `TidyCuts-Setup-1.3.7.exe` | Windows 10 and 11, 64-bit. The installer. Best for most people. |
+| `TidyCuts-1.3.7-windows-portable.zip` | Windows. No installing: unzip it anywhere and run `TidyCuts.exe`. |
+| `TidyCuts-1.3.7-macos.dmg` | Mac with Apple silicon (M1 or newer), macOS 11 or later. |
+| `TidyCuts-1.3.7-macos.zip` | The same Mac app in a zip, if the disk image gives you trouble. |
+| `TidyCuts-1.3.7-linux-x86_64.AppImage` | Linux, any 64-bit distribution (Ubuntu, Debian, Fedora, Arch, Mint, openSUSE...). |
+| `tidycuts_1.3.7_amd64.deb` | Linux: Ubuntu, Debian, Linux Mint and other distributions that use .deb packages. |
+| `TidyCuts-1.3.7-linux-x86_64.tar.gz` | Linux, no install: unpack it anywhere and run `./tidycuts`. |
 | `SHA256SUMS.txt` | A checksum for every file, to check that a download is the one we built. |
 
 FFmpeg, which TidyCuts uses to read and write video files, is included in every
@@ -25,7 +25,7 @@ Intel Macs aren't supported yet.
 
 ### The installer
 
-1. Run `TidyCuts-Setup-1.3.6.exe`.
+1. Run `TidyCuts-Setup-1.3.7.exe`.
 2. If Windows shows **"Windows protected your PC"**, choose **More info**, then
    **Run anyway**. (See "Why do I get a warning?" below.)
 3. Follow the steps. By default TidyCuts installs just for you and doesn't need an
@@ -38,7 +38,7 @@ settings are not deleted.
 
 ### The portable version
 
-1. Unzip `TidyCuts-1.3.6-windows-portable.zip` to any folder (a USB stick works).
+1. Unzip `TidyCuts-1.3.7-windows-portable.zip` to any folder (a USB stick works).
 2. Open the `TidyCuts` folder and run `TidyCuts.exe`.
 
 Keep the `ffmpeg` folder next to `TidyCuts.exe`. To remove it, delete the folder.
@@ -53,13 +53,13 @@ Pick one of the three files.
 
 - **AppImage** (any distribution): make it executable and run it.
   ```
-  chmod +x TidyCuts-1.3.6-linux-x86_64.AppImage
-  ./TidyCuts-1.3.6-linux-x86_64.AppImage
+  chmod +x TidyCuts-1.3.7-linux-x86_64.AppImage
+  ./TidyCuts-1.3.7-linux-x86_64.AppImage
   ```
   Some systems need the `libfuse2` package for AppImages (`sudo apt install libfuse2`).
-- **.deb** (Ubuntu, Debian, Linux Mint): `sudo apt install ./tidycuts_1.3.6_amd64.deb`, then start
+- **.deb** (Ubuntu, Debian, Linux Mint): `sudo apt install ./tidycuts_1.3.7_amd64.deb`, then start
   TidyCuts from the menu or by typing `tidycuts`.
-- **.tar.gz** (no install): `tar xzf TidyCuts-1.3.6-linux-x86_64.tar.gz`, then run `TidyCuts/tidycuts`.
+- **.tar.gz** (no install): `tar xzf TidyCuts-1.3.7-linux-x86_64.tar.gz`, then run `TidyCuts/tidycuts`.
 
 Everything TidyCuts needs (FFmpeg, the captions program, the Studio Voice files and the picture
 program) is inside; you only need a normal desktop with ALSA or PipeWire sound and, for the
@@ -70,7 +70,7 @@ Linux support is new, so please [report problems](../../issues/new/choose).
 
 ## Mac
 
-1. Open `TidyCuts-1.3.6-macos.dmg`.
+1. Open `TidyCuts-1.3.7-macos.dmg`.
 2. Drag **TidyCuts** onto the **Applications** folder in the same window.
 3. Open **TidyCuts** from Applications (or Launchpad).
 
@@ -109,12 +109,12 @@ and sometimes reacts badly to it. Remove the mark:
 
 #### The disk image itself won't open
 
-Download `TidyCuts-1.3.6-macos.zip` instead, double-click it to unzip, drag
+Download `TidyCuts-1.3.7-macos.zip` instead, double-click it to unzip, drag
 **TidyCuts** into Applications, and follow the steps above. Or remove the mark from
 the disk image first, in Terminal:
 
 ```
-xattr -d com.apple.quarantine ~/Downloads/TidyCuts-1.3.6-macos.dmg
+xattr -d com.apple.quarantine ~/Downloads/TidyCuts-1.3.7-macos.dmg
 ```
 
 #### Still stuck?
@@ -143,11 +143,11 @@ warning is only about who published it. Here is what you can check yourself:
 
   Windows (PowerShell):
   ```
-  Get-FileHash .\TidyCuts-Setup-1.3.6.exe -Algorithm SHA256
+  Get-FileHash .\TidyCuts-Setup-1.3.7.exe -Algorithm SHA256
   ```
   Mac (Terminal):
   ```
-  shasum -a 256 ~/Downloads/TidyCuts-1.3.6-macos.dmg
+  shasum -a 256 ~/Downloads/TidyCuts-1.3.7-macos.dmg
   ```
   The long code that appears should match the line for that file.
 

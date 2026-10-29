@@ -16,7 +16,6 @@ use crate::decode::KillOnDrop;
 use crate::studio_voice::search_dirs;
 use crate::whispercpp::{settings_dir, sha256_file};
 use std::ffi::OsString;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -295,47 +294,15 @@ fn download_files(
     Ok(())
 }
 
-/// Runs curl for one file, carrying on from a partial file. `progress` gets
+/// Downloads one file, carrying on from a partial file. `progress` gets
 /// the bytes the part file holds.
 fn run_curl(
     f: &ModelFile,
     part: &Path,
     cancel: &AtomicBool,
-    mut progress: impl FnMut(u64),
+    progress: impl FnMut(u64),
 ) -> Result<(), String> {
-    let mut cmd = tidycuts_media::curl();
-    cmd.args(["-L", "--fail", "-sS", "--retry", "3", "-C", "-", "-o"])
-        .arg(part)
-        .arg(f.url)
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::null());
-    no_window(&mut cmd);
-    let mut child = KillOnDrop(
-        cmd.spawn()
-            .map_err(|_| "Could not start the program that downloads files (curl).".to_string())?,
-    );
-    let status = loop {
-        if cancel.load(Ordering::Relaxed) {
-            return Err("Cancelled.".into());
-        }
-        match child.0.try_wait() {
-            Ok(Some(s)) => break s,
-            Ok(None) => {
-                progress(std::fs::metadata(part).map_or(0, |m| m.len()));
-                std::thread::sleep(Duration::from_millis(250));
-            }
-            Err(e) => return Err(e.to_string()),
-        }
-    };
-    if status.success() {
-        return Ok(());
-    }
-    let mut msg = String::new();
-    if let Some(mut e) = child.0.stderr.take() {
-        let _ = e.read_to_string(&mut msg);
-    }
-    Err(msg.trim().to_string())
+    tidycuts_media::download_resume(f.url, part, cancel, progress)
 }
 
 fn no_window(cmd: &mut std::process::Command) {
