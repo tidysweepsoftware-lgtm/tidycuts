@@ -16,6 +16,7 @@ use crate::decode::KillOnDrop;
 use crate::studio_voice::search_dirs;
 use crate::whispercpp::{settings_dir, sha256_file};
 use std::ffi::OsString;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
