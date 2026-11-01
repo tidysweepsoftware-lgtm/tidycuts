@@ -364,6 +364,9 @@ fn request_body(req: &Request) -> Result<Value, String> {
             "guidance": { "txt_cfg": 1.0 },
         },
     });
+    // The last step (turning the drawing into a picture) is done in pieces: it needs far less
+    // graphics memory, so it does not stall on a laptop.
+    body["vae_tiling_params"] = json!({ "enabled": true });
     if refine {
         // Drawn at half size, then refined at the full size in tiles.
         body["hires"] = json!({
@@ -375,7 +378,6 @@ fn request_body(req: &Request) -> Result<Value, String> {
             "steps": 4,
             "denoising_strength": 0.45,
         });
-        body["vae_tiling_params"] = json!({ "enabled": true });
     }
     Ok(body)
 }
@@ -548,6 +550,7 @@ mod tests {
         assert_eq!(v["prompt"], "a cat");
         assert_eq!(v["height"], 720);
         assert!(v.get("hires").is_none());
+        assert_eq!(v["vae_tiling_params"]["enabled"], true);
         let big = request_body(&Request {
             width: 3840,
             height: 2160,

@@ -2,6 +2,12 @@
 
 All notable changes to TidyCuts are listed here, newest first.
 
+## 1.3.8 (pictures that finish on laptops)
+
+- **Image Generator:** the last step of a picture (turning the drawing into the picture, the part after
+  85%) is now done in small pieces. It needs much less graphics memory, so the generation no longer
+  stops at 85% on laptops with a small or shared graphics card.
+
 ## 1.3.7 (downloads written by TidyCuts itself)
 
 - The picture-model and speech-model downloads no longer let a separate program write the file:

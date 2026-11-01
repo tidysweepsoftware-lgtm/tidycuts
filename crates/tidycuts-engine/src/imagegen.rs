@@ -511,6 +511,8 @@ fn build_args(req: &Request, models: &Path, out: &Path) -> Vec<OsString> {
     }
     push("-o", out.into());
     a.push("--diffusion-fa".into());
+    // Turn the drawing into a picture in pieces: far less graphics memory (laptops).
+    a.push("--vae-tiling".into());
     a
 }
 
@@ -949,6 +951,7 @@ mod tests {
         assert_eq!(at("-r"), "me.png");
         assert_eq!(a.iter().filter(|s| *s == "-r").count(), 2);
         assert_eq!(at("--steps"), "4");
+        assert!(a.iter().any(|s| s == "--vae-tiling"));
     }
 
     #[test]
