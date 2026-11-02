@@ -25,6 +25,16 @@ pub fn is_project_file(path: &Path) -> bool {
 /// Bumped whenever the on-disk format changes incompatibly.
 const FORMAT_VERSION: u32 = 2;
 
+/// The version of TidyCuts that is running (written into every project it saves).
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Brings a project read from an older file up to the current format. Each step does one
+/// version's change, so a file from any older version goes through all the steps after it.
+/// (Version 1 to 2 needed nothing rewritten: every field added since has a default.)
+fn migrate(project: &mut Project) {
+    project.format_version = FORMAT_VERSION;
+}
+
 pub type MediaId = Uuid;
 pub type TrackId = Uuid;
 
@@ -260,6 +270,10 @@ impl Track {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
     pub format_version: u32,
+    /// The version of TidyCuts that last saved this file (empty in files saved before this was
+    /// kept). It helps when a project made by a newer version misbehaves in an older one.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub saved_by: String,
     pub name: String,
     pub settings: ProjectSettings,
     pub media: Vec<MediaItem>,
@@ -284,6 +298,7 @@ impl Project {
     pub fn new(name: impl Into<String>) -> Self {
         Project {
             format_version: FORMAT_VERSION,
+            saved_by: APP_VERSION.to_string(),
             name: name.into(),
             settings: ProjectSettings::default(),
             media: Vec::new(),
@@ -415,13 +430,22 @@ impl Project {
     }
 
     pub fn to_json(&self) -> Result<String, ProjectError> {
-        Ok(serde_json::to_string_pretty(self)?)
+        if self.saved_by == APP_VERSION {
+            return Ok(serde_json::to_string_pretty(self)?);
+        }
+        // The file says which version saved it.
+        let mut stamped = self.clone();
+        stamped.saved_by = APP_VERSION.to_string();
+        Ok(serde_json::to_string_pretty(&stamped)?)
     }
 
     pub fn from_json(json: &str) -> Result<Project, ProjectError> {
-        let project: Project = serde_json::from_str(json)?;
+        let mut project: Project = serde_json::from_str(json)?;
         if project.format_version > FORMAT_VERSION {
             return Err(ProjectError::TooNew(project.format_version));
+        }
+        if project.format_version < FORMAT_VERSION {
+            migrate(&mut project);
         }
         Ok(project)
     }
@@ -530,6 +554,13 @@ mod tests {
         assert_eq!(clip.speed, 1.0);
         assert_eq!(clip.duration(), s(4.0));
         assert!(p.settings.magnetic);
+        // An older file is brought up to the current format, so saving it again does not
+        // leave it labelled with the old version.
+        assert_eq!(p.format_version, FORMAT_VERSION);
+        assert!(p.saved_by.is_empty());
+        let again = Project::from_json(&p.to_json().unwrap()).unwrap();
+        assert_eq!(again.saved_by, APP_VERSION);
+        assert_eq!(again.format_version, FORMAT_VERSION);
     }
 
     #[test]
