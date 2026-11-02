@@ -58,6 +58,7 @@ fn saved_folders(cache: &std::path::Path) -> Vec<SavedFolder> {
         ("Voiceovers", cache.join("voiceovers")),
         ("AI pictures made", cache.join("imagegen")),
         ("Voice clean-up", cache.join("voice")),
+        ("Remembered transcripts", cache.join("transcripts")),
         ("Thumbnails", cache.join("thumbnails")),
         ("Waveforms", cache.join("waveforms")),
     ];

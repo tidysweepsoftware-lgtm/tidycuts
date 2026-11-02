@@ -216,12 +216,16 @@ pub fn set_cache_dir(dir: PathBuf) {
     let _ = CACHE.set(dir);
 }
 
-fn voice_dir() -> PathBuf {
+/// The cache folder the app told us about (a temporary one in tests).
+pub(crate) fn cache_root() -> PathBuf {
     CACHE
         .get()
         .cloned()
         .unwrap_or_else(|| std::env::temp_dir().join("TidyCuts").join("cache"))
-        .join("voice")
+}
+
+fn voice_dir() -> PathBuf {
+    cache_root().join("voice")
 }
 
 /// Deletes every cleaned sound (View > Delete Preview Files).

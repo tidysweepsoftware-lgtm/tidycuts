@@ -315,7 +315,7 @@ pub fn leftover_autosaves() -> Vec<(PathBuf, std::time::SystemTime)> {
     backups_in(&autosave_dir())
 }
 
-fn backups_in(dir: &Path) -> Vec<(PathBuf, std::time::SystemTime)> {
+pub(crate) fn backups_in(dir: &Path) -> Vec<(PathBuf, std::time::SystemTime)> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };

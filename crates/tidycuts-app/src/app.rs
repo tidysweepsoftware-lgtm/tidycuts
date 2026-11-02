@@ -158,6 +158,8 @@ pub struct TidyCutsApp {
     autosave_written: Option<PathBuf>,
     /// Backups left by a crashed session, offered when the app starts.
     recovery: Vec<(PathBuf, std::time::SystemTime)>,
+    /// The earlier versions of this project while their list is open.
+    history: Option<Vec<(PathBuf, std::time::SystemTime)>>,
 }
 
 impl TidyCutsApp {
@@ -255,6 +257,7 @@ impl TidyCutsApp {
             reframe_tx,
             reframe_rx,
             autosave_written: None,
+            history: None,
             recovery: if open.is_empty() {
                 prefs::leftover_autosaves()
             } else {
@@ -1662,8 +1665,118 @@ impl TidyCutsApp {
             .collect();
         let path = dir.join(format!("{name} (autosave).{PROJECT_EXTENSION}"));
         match self.project.save(&path) {
-            Ok(()) => self.autosave_written = Some(path),
+            Ok(()) => {
+                self.autosave_written = Some(path);
+                self.keep_version();
+            }
             Err(e) => log::warn!("autosave failed: {e}"),
+        }
+    }
+
+    /// The folder this project's earlier versions are kept in.
+    fn history_dir(&self) -> PathBuf {
+        let name: String = self
+            .project
+            .name
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == ' ' || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        let name = if name.trim().is_empty() {
+            "Untitled".to_string()
+        } else {
+            name
+        };
+        prefs::autosave_dir().join("history").join(name)
+    }
+
+    /// Keeps a copy of the project as it is now among its earlier versions; the newest ten stay.
+    fn keep_version(&self) {
+        let dir = self.history_dir();
+        if std::fs::create_dir_all(&dir).is_err() {
+            return;
+        }
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let path = dir.join(format!("{secs}.{PROJECT_EXTENSION}"));
+        if let Err(e) = self.project.save(&path) {
+            log::warn!("could not keep an earlier version: {e}");
+            return;
+        }
+        for (old, _) in prefs::backups_in(&dir).into_iter().skip(10) {
+            let _ = std::fs::remove_file(old);
+        }
+    }
+
+    /// Opens the list of this project's earlier versions.
+    pub fn open_history(&mut self) {
+        self.history = Some(prefs::backups_in(&self.history_dir()));
+    }
+
+    /// Opens an earlier version as an unsaved project; what is on the timeline now is kept in
+    /// the list first, so nothing is lost.
+    fn restore_version(&mut self, path: &Path) {
+        match Project::load(path) {
+            Ok(mut p) => {
+                self.keep_version();
+                crate::sounds::restore_sounds(&mut p);
+                self.reset(p, None);
+                self.dirty = true;
+                self.history = None;
+                self.notify(
+                    "An earlier version is open. Save it to keep it. The version you had before is kept in the list.",
+                    false,
+                );
+            }
+            Err(e) => self.notify(&format!("Couldn't open that version: {e}"), true),
+        }
+    }
+
+    fn history_modal(&mut self, ctx: &egui::Context) {
+        let Some(list) = self.history.clone() else {
+            return;
+        };
+        enum Choice {
+            Open(PathBuf),
+            Close,
+        }
+        let mut choice = None;
+        egui::Modal::new(Id::new("history")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.heading("Restore an earlier version");
+            ui.add_space(4.0);
+            ui.label("While you have unsaved changes, TidyCuts keeps a copy every few minutes (the newest ten stay). Opening one replaces what is on the timeline now; the current state is kept in this list first.");
+            ui.add_space(10.0);
+            if list.is_empty() {
+                ui.label("There are no earlier versions yet. The first one appears after the next autosave.");
+            }
+            for (path, time) in &list {
+                let ago = time.elapsed().map(ago_label).unwrap_or_default();
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(ago).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add(theme::accent_button("Open")).clicked() {
+                            choice = Some(Choice::Open(path.clone()));
+                        }
+                    });
+                });
+                ui.add_space(4.0);
+            }
+            ui.add_space(10.0);
+            if ui.add(theme::outline_button("Close")).clicked() {
+                choice = Some(Choice::Close);
+            }
+        });
+        match choice {
+            Some(Choice::Open(p)) => self.restore_version(&p),
+            Some(Choice::Close) => self.history = None,
+            None => {}
         }
     }
 
@@ -2846,6 +2959,7 @@ impl eframe::App for TidyCutsApp {
 
         self.unsaved_modal(&ctx);
         self.recovery_modal(&ctx);
+        self.history_modal(&ctx);
         self.first_run_tour();
         dialogs::show(self, &ctx);
         self.tick_engine(&ctx);

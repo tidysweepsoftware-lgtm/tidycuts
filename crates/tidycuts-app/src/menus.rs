@@ -68,6 +68,9 @@ pub fn menus(app: &mut TidyCutsApp, ui: &mut Ui) {
             if item(ui, "Save Project As…", &format!("{c}Shift+S"), true) {
                 app.save_as();
             }
+            if item(ui, "Restore Earlier Version…", "", true) {
+                app.open_history();
+            }
             ui.separator();
             if item(ui, "Project Settings…", &format!("{c}Shift+,"), true) {
                 app.dialogs.open_project_settings(&app.project);

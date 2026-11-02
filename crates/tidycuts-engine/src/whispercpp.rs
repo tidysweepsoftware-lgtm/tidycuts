@@ -623,9 +623,99 @@ pub fn words_from_sentences(sentences: &[Sentence], table: &[Stretch]) -> Vec<Wo
     words
 }
 
+/// Where the words of this stretch of this file are remembered. The file's name, size and
+/// date, the stretch, the language and the model all count, so a changed file or a different
+/// model never gets an old answer.
+fn transcript_file(
+    path: &Path,
+    stream: u32,
+    range: (f64, f64),
+    language: &str,
+    model: &Path,
+) -> PathBuf {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    if let Ok(m) = std::fs::metadata(path) {
+        m.len().hash(&mut h);
+        if let Ok(t) = m.modified() {
+            t.hash(&mut h);
+        }
+    }
+    stream.hash(&mut h);
+    range.0.to_bits().hash(&mut h);
+    range.1.to_bits().hash(&mut h);
+    language.hash(&mut h);
+    model.file_name().hash(&mut h);
+    std::fs::metadata(model).map_or(0, |m| m.len()).hash(&mut h);
+    crate::voice_clean::cache_root()
+        .join("transcripts")
+        .join(format!("{:016x}.tsv", h.finish()))
+}
+
+fn read_transcript(file: &Path) -> Option<Vec<Word>> {
+    let text = std::fs::read_to_string(file).ok()?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let mut parts = line.splitn(3, '\t');
+        let start = parts.next()?.parse().ok()?;
+        let end = parts.next()?.parse().ok()?;
+        let word = parts.next()?;
+        out.push(Word {
+            text: word.to_string(),
+            start,
+            end,
+        });
+    }
+    Some(out)
+}
+
+fn write_transcript(file: &Path, words: &[Word]) {
+    let Some(dir) = file.parent() else {
+        return;
+    };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    let mut text = String::new();
+    for w in words {
+        text.push_str(&format!(
+            "{}\t{}\t{}\n",
+            w.start,
+            w.end,
+            w.text.replace(['\t', '\n', '\r'], " ")
+        ));
+    }
+    let tmp = file.with_extension("tmp");
+    if std::fs::write(&tmp, text).is_ok() {
+        let _ = std::fs::rename(&tmp, file);
+    }
+}
+
 /// Listens to `range` of a media file with Whisper and returns the words
-/// with their times (in the media file's own time).
+/// with their times (in the media file's own time). A stretch that was listened to before is
+/// not listened to again: its words are read back from where they were remembered.
 pub fn transcribe(
+    path: &Path,
+    stream: u32,
+    range: (f64, f64),
+    language: &str,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(f64),
+) -> Result<Vec<Word>, String> {
+    let file = model_file().map(|m| transcript_file(path, stream, range, language, &m));
+    if let Some(words) = file.as_deref().and_then(read_transcript) {
+        progress(1.0);
+        return Ok(words);
+    }
+    let words = transcribe_fresh(path, stream, range, language, cancel, progress)?;
+    if let Some(f) = &file {
+        write_transcript(f, &words);
+    }
+    Ok(words)
+}
+
+fn transcribe_fresh(
     path: &Path,
     stream: u32,
     range: (f64, f64),
@@ -722,6 +812,35 @@ pub fn transcribe(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn remembered_words_come_back_exactly() {
+        let dir = std::env::temp_dir().join(format!("tidycuts-transcript-{}", std::process::id()));
+        let file = dir.join("t.tsv");
+        let words = vec![
+            Word {
+                text: "Hello".into(),
+                start: 0.1,
+                end: 0.4166666666666667,
+            },
+            Word {
+                text: "wor\tld".into(),
+                start: 1.0 / 3.0,
+                end: 12.5,
+            },
+        ];
+        write_transcript(&file, &words);
+        let back = read_transcript(&file).unwrap();
+        assert_eq!(back.len(), 2);
+        assert_eq!(back[0], words[0]);
+        assert_eq!(back[1].text, "wor ld");
+        assert_eq!(back[1].start, words[1].start);
+        // An empty answer (no voice) is remembered too.
+        write_transcript(&file, &[]);
+        assert_eq!(read_transcript(&file).unwrap().len(), 0);
+        assert!(read_transcript(&dir.join("missing.tsv")).is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn sha256_matches_the_known_answers() {
         let dir = std::env::temp_dir().join("tidycuts-sha-test");
