@@ -67,6 +67,12 @@ pub fn init_logging() {
 pub fn recent() -> Vec<String> {
     LINES
         .get()
-        .map(|l| l.lock().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect())
+        .map(|l| {
+            l.lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .iter()
+                .cloned()
+                .collect()
+        })
         .unwrap_or_default()
 }

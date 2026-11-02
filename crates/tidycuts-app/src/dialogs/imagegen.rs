@@ -834,10 +834,8 @@ impl ImageGenDialog {
         };
         let memory = imagegen::shared_memory_gb();
         let card = imagegen::graphics_card();
-        let advice = imagegen::advice_for_memory(memory).or_else(|| {
-            card.as_ref()
-                .and_then(|c| imagegen::advice_for_card(c.gb))
-        });
+        let advice = imagegen::advice_for_memory(memory)
+            .or_else(|| card.as_ref().and_then(|c| imagegen::advice_for_card(c.gb)));
         if let (Some(gb), Some(_)) = (memory, advice) {
             ui.add(
                 egui::Label::new(

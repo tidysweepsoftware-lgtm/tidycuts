@@ -17,8 +17,8 @@ pub mod speech;
 pub mod sysinfo;
 
 pub use download::download_resume;
-pub use sysinfo::{free_disk_bytes, graphics_cards};
 pub use ffmpeg::{below_normal, FfmpegError, Tools};
+pub use sysinfo::{free_disk_bytes, graphics_cards};
 
 /// The program that downloads files (curl, which comes with Windows 10 and 11, macOS and most
 /// Linux systems). On Windows it is taken from the system folder by its full path, so it is

@@ -591,7 +591,10 @@ impl PreferencesDialog {
                         ui.label(RichText::new(super::sizes::fmt_bytes(bytes)).color(theme::TEXT));
                         ui.add_space(8.0);
                         if ui
-                            .add(theme::outline_button(format!("{}  Open folder", ph::FOLDER_OPEN)))
+                            .add(theme::outline_button(format!(
+                                "{}  Open folder",
+                                ph::FOLDER_OPEN
+                            )))
                             .clicked()
                         {
                             let _ = super::reveal(&path);
