@@ -44,6 +44,44 @@ fn parse_version(text: &str) -> String {
     String::new()
 }
 
+/// The graphics cards and their memory, asked once.
+fn graphics_memory() -> String {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(|| {
+        let gb = |n: u64| n as f64 / f64::from(1u32 << 30);
+        let cards: Vec<String> = tidycuts_media::graphics_cards()
+            .iter()
+            .filter(|c| !c.software)
+            .map(|c| {
+                format!(
+                    "{}: {:.1} GB of its own, {:.1} GB shared",
+                    c.name,
+                    gb(c.dedicated_bytes),
+                    gb(c.shared_bytes)
+                )
+            })
+            .collect();
+        if cards.is_empty() {
+            "not known".to_string()
+        } else {
+            cards.join("; ")
+        }
+    })
+    .clone()
+}
+
+/// What AI files are on this computer.
+fn ai_models() -> String {
+    use tidycuts_engine::imagegen::{self, Quality};
+    let yes = |b: bool| if b { "downloaded" } else { "not downloaded" };
+    format!(
+        "pictures Standard {}, High {}; speech {}",
+        yes(imagegen::installed(Quality::Standard)),
+        yes(imagegen::installed(Quality::High)),
+        yes(tidycuts_engine::whispercpp::model_file().is_some())
+    )
+}
+
 impl AboutDialog {
     fn details(app: &TidyCutsApp, ctx: &egui::Context) -> Vec<(&'static str, String, bool)> {
         let gpu = match (&app.engine, &app.gpu_error) {
@@ -84,8 +122,33 @@ impl AboutDialog {
                 }
             }
         };
+        let free = |p: Option<std::path::PathBuf>| {
+            p.and_then(|p| tidycuts_media::free_disk_bytes(&p))
+                .map(super::sizes::fmt_bytes)
+        };
+        let disk = match (
+            free(Some(app.prefs.cache_dir())),
+            free(tidycuts_engine::imagegen::models_dir()),
+        ) {
+            (Some(a), Some(b)) => format!("{a} free for the cache, {b} free for AI models"),
+            (Some(a), None) | (None, Some(a)) => format!("{a} free"),
+            (None, None) => "not known".to_string(),
+        };
         vec![
+            (
+                "Edition",
+                if super::updates_come_from_store() {
+                    "Microsoft Store"
+                } else {
+                    "Direct download"
+                }
+                .to_string(),
+                true,
+            ),
             ("Graphics", gpu.0, gpu.1),
+            ("Graphics memory", graphics_memory(), true),
+            ("Disk space", disk, true),
+            ("AI models", ai_models(), true),
             ("FFmpeg", ffmpeg.0, ffmpeg.1),
             ("Encoders", encoders.0, encoders.1),
             (
@@ -199,6 +262,14 @@ impl AboutDialog {
             let mut text = format!("TidyCuts {}\n", env!("CARGO_PKG_VERSION"));
             for (k, v, _) in &details {
                 text.push_str(&format!("{k}: {v}\n"));
+            }
+            let recent = crate::diagnostics::recent();
+            if !recent.is_empty() {
+                text.push_str("\nRecent warnings and errors:\n");
+                for line in recent {
+                    text.push_str(&line);
+                    text.push('\n');
+                }
             }
             ctx.copy_text(text);
             app.notify("Details copied.", false);

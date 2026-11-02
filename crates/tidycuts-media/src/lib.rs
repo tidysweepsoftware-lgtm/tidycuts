@@ -14,8 +14,10 @@ pub mod probe;
 #[cfg(windows)]
 mod sapi;
 pub mod speech;
+pub mod sysinfo;
 
 pub use download::download_resume;
+pub use sysinfo::{free_disk_bytes, graphics_cards};
 pub use ffmpeg::{below_normal, FfmpegError, Tools};
 
 /// The program that downloads files (curl, which comes with Windows 10 and 11, macOS and most

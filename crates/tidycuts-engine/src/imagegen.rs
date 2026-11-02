@@ -161,6 +161,61 @@ pub fn advice_for_memory(gb: Option<f64>) -> Option<Quality> {
     }
 }
 
+/// The graphics card the picture models would run on, and the memory they can count on.
+#[derive(Debug, Clone)]
+pub struct GraphicsCard {
+    pub name: String,
+    pub gb: f64,
+}
+
+/// The card on this computer (`None` where it cannot be asked, such as on a Mac, whose memory is
+/// handled by [`shared_memory_gb`]).
+pub fn graphics_card() -> Option<GraphicsCard> {
+    // Asked once: the window calls this every frame.
+    static CARD: std::sync::OnceLock<Option<GraphicsCard>> = std::sync::OnceLock::new();
+    CARD.get_or_init(|| pick_card(&tidycuts_media::graphics_cards()))
+        .clone()
+}
+
+/// A card with memory of its own is the one the models use (that is what a laptop with two
+/// graphics chips picks for hard work); with none, the memory shared with the processor counts.
+fn pick_card(cards: &[tidycuts_media::sysinfo::GraphicsCard]) -> Option<GraphicsCard> {
+    const GB: f64 = (1u64 << 30) as f64;
+    let real: Vec<&tidycuts_media::sysinfo::GraphicsCard> =
+        cards.iter().filter(|c| !c.software).collect();
+    if let Some(c) = real
+        .iter()
+        .filter(|c| c.dedicated_bytes as f64 >= 1.5 * GB)
+        .max_by_key(|c| c.dedicated_bytes)
+    {
+        return Some(GraphicsCard {
+            name: c.name.clone(),
+            gb: c.dedicated_bytes as f64 / GB,
+        });
+    }
+    let c = real.iter().max_by_key(|c| c.shared_bytes)?;
+    Some(GraphicsCard {
+        name: c.name.clone(),
+        gb: c.shared_bytes as f64 / GB,
+    })
+}
+
+/// Which size of the models suits a graphics card with this much memory (`None`: either).
+pub fn advice_for_card(gb: f64) -> Option<Quality> {
+    (gb < 10.0).then_some(Quality::Standard)
+}
+
+/// One plain sentence on how the models will do on a card with this much memory.
+pub fn card_note(gb: f64) -> &'static str {
+    if gb >= 10.0 {
+        "Both sizes should work."
+    } else if gb >= 5.0 {
+        "The Standard models are recommended; High quality may stall or fail on this card."
+    } else {
+        "This card is small for the picture models, so pictures may stall or fail. The Standard models have the best chance."
+    }
+}
+
 /// The folder the model files are kept in (`TIDYCUTS_IMAGEGEN_MODELS` overrides).
 pub fn models_dir() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("TIDYCUTS_IMAGEGEN_MODELS") {
@@ -244,6 +299,22 @@ fn download_files(
     std::fs::create_dir_all(dir).map_err(|e| format!("Could not make the models folder: {e}"))?;
     let missing: Vec<&ModelFile> = files.iter().filter(|f| !file_is_complete(dir, f)).collect();
     let total: u64 = missing.iter().map(|f| f.bytes).sum();
+    // A full disk is the commonest reason for a download that stops: say so before starting.
+    if let Some(free) = tidycuts_media::free_disk_bytes(dir) {
+        let have: u64 = missing
+            .iter()
+            .map(|f| std::fs::metadata(dir.join(format!("{}.part", f.name))).map_or(0, |m| m.len()))
+            .sum();
+        let need = total.saturating_sub(have) + (1 << 29);
+        if free < need {
+            let gb = |n: u64| n as f64 / f64::from(1u32 << 30);
+            return Err(format!(
+                "There is not enough free space on the disk for these models: they need {:.1} GB and {:.1} GB is free. Free some space and press Download again.",
+                gb(need),
+                gb(free)
+            ));
+        }
+    }
     let mut done_before = 0u64;
     for f in missing {
         let part = dir.join(format!("{}.part", f.name));
@@ -566,6 +637,7 @@ impl Progress {
 
 /// Words that tell what went wrong, from the program's last lines.
 pub(crate) fn explain_failure(tail: &[String]) -> String {
+    log::warn!("the image program said: {}", tail.join(" | "));
     let all = tail.join(" ").to_lowercase();
     if all.contains("out of device memory")
         || all.contains("out of memory")
@@ -895,6 +967,38 @@ mod tests {
         if !cfg!(target_os = "macos") {
             assert_eq!(shared_memory_gb(), None);
         }
+    }
+
+    #[test]
+    fn the_card_advice_follows_its_memory() {
+        assert_eq!(advice_for_card(4.0), Some(Quality::Standard));
+        assert_eq!(advice_for_card(8.0), Some(Quality::Standard));
+        assert_eq!(advice_for_card(12.0), None);
+        assert!(card_note(24.0).contains("Both sizes"));
+        assert!(card_note(6.0).contains("Standard"));
+        assert!(card_note(2.0).contains("small"));
+        let gb = 1u64 << 30;
+        let card = |name: &str, own: u64, shared: u64, software: bool| {
+            tidycuts_media::sysinfo::GraphicsCard {
+                name: name.into(),
+                dedicated_bytes: own,
+                shared_bytes: shared,
+                software,
+            }
+        };
+        // A laptop with built-in graphics and a small discrete card: the discrete one counts.
+        let both = [
+            card("Intel UHD", gb / 8, 8 * gb, false),
+            card("GeForce GTX 1650", 4 * gb, 8 * gb, false),
+            card("Basic Render Driver", 0, 8 * gb, true),
+        ];
+        let c = pick_card(&both).unwrap();
+        assert_eq!(c.name, "GeForce GTX 1650");
+        assert!((c.gb - 4.0).abs() < 1e-9);
+        // Only built-in graphics: the shared memory counts.
+        let c = pick_card(&[card("Intel UHD", gb / 8, 6 * gb, false)]).unwrap();
+        assert!((c.gb - 6.0).abs() < 1e-9);
+        assert!(pick_card(&[]).is_none());
     }
 
     #[test]

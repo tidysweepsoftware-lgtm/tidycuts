@@ -5,6 +5,7 @@ mod app;
 mod autoduck;
 mod captions;
 mod detection;
+mod diagnostics;
 mod dialogs;
 mod easing;
 mod engine;
@@ -56,7 +57,7 @@ fn window_icon() -> Option<egui::IconData> {
 fn main() -> eframe::Result<()> {
     app::app_start();
     prefs::migrate_legacy_folders();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+    diagnostics::init_logging();
     let open_paths: Vec<std::path::PathBuf> = std::env::args_os()
         .skip(1)
         .map(std::path::PathBuf::from)

@@ -24,11 +24,52 @@ const PAGES: [(&str, &str); 6] = [
 /// Autosave choices in minutes; 0 is off.
 const AUTOSAVE: [u32; 7] = [0, 1, 2, 5, 10, 15, 30];
 
+/// A folder TidyCuts keeps files in: what it is called, how big it is, where it is.
+type SavedFolder = (&'static str, u64, PathBuf);
+
 pub struct PreferencesDialog {
     draft: Prefs,
     /// Bytes the preview cache takes on disk, once measured.
     usage: Arc<Mutex<Option<u64>>>,
+    /// The other folders TidyCuts keeps files in, once measured.
+    others: Arc<Mutex<Option<Vec<SavedFolder>>>>,
     measuring: bool,
+}
+
+/// The size of everything in a folder (0 when it is not there).
+fn folder_bytes(dir: &std::path::Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .flatten()
+        .map(|e| match e.metadata() {
+            Ok(m) if m.is_dir() => folder_bytes(&e.path()),
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        })
+        .sum()
+}
+
+/// The folders (besides the preview cache) that take room, with their sizes.
+fn saved_folders(cache: &std::path::Path) -> Vec<SavedFolder> {
+    let mut out: Vec<(&'static str, PathBuf)> = vec![
+        ("Smooth-editing copies", cache.join("proxies")),
+        ("Voiceovers", cache.join("voiceovers")),
+        ("AI pictures made", cache.join("imagegen")),
+        ("Voice clean-up", cache.join("voice")),
+        ("Thumbnails", cache.join("thumbnails")),
+        ("Waveforms", cache.join("waveforms")),
+    ];
+    if let Some(models) = tidycuts_engine::imagegen::models_dir()
+        .and_then(|d| d.parent().map(std::path::Path::to_path_buf))
+    {
+        out.push(("AI model files (downloaded)", models));
+    }
+    out.into_iter()
+        .map(|(name, path)| (name, folder_bytes(&path), path))
+        .filter(|(_, bytes, _)| *bytes > 0)
+        .collect()
 }
 
 /// Remembers the last page shown for the rest of the session.
@@ -68,6 +109,7 @@ impl PreferencesDialog {
         PreferencesDialog {
             draft: prefs.clone(),
             usage: Arc::new(Mutex::new(None)),
+            others: Arc::new(Mutex::new(None)),
             measuring: false,
         }
     }
@@ -81,6 +123,8 @@ impl PreferencesDialog {
         let scrub = e.scrub.clone();
         let keep = app.project.media.clone();
         let slot = self.usage.clone();
+        let others = self.others.clone();
+        let cache = app.prefs.cache_dir();
         let ctx = ctx.clone();
         *slot.lock().unwrap() = None;
         self.measuring = true;
@@ -90,6 +134,7 @@ impl PreferencesDialog {
             }
             let n = scrub.disk_usage();
             *slot.lock().unwrap() = Some(n);
+            *others.lock().unwrap() = Some(saved_folders(&cache));
             ctx.request_repaint();
         });
     }
@@ -525,6 +570,35 @@ impl PreferencesDialog {
         });
         if clear {
             self.measure(app, ctx, true);
+        }
+        let others = self.others.lock().unwrap().clone();
+        ui.add_space(8.0);
+        widgets::group_title(ui, "Other saved files");
+        widgets::hint(
+            ui,
+            "These take room too. Smooth-editing copies and voiceovers are used by your projects, so they are not deleted here: open the folder to look.",
+        );
+        match others {
+            None => {
+                ui.label(RichText::new("Measuring…").color(theme::TEXT_DIM));
+            }
+            Some(list) if list.is_empty() => {
+                ui.label(RichText::new("Nothing else is saved.").color(theme::TEXT_DIM));
+            }
+            Some(list) => {
+                for (name, bytes, path) in list {
+                    field(ui, name, |ui| {
+                        ui.label(RichText::new(super::sizes::fmt_bytes(bytes)).color(theme::TEXT));
+                        ui.add_space(8.0);
+                        if ui
+                            .add(theme::outline_button(format!("{}  Open folder", ph::FOLDER_OPEN)))
+                            .clicked()
+                        {
+                            let _ = super::reveal(&path);
+                        }
+                    });
+                }
+            }
         }
     }
 

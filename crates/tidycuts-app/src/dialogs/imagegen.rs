@@ -833,7 +833,11 @@ impl ImageGenDialog {
             _ => None,
         };
         let memory = imagegen::shared_memory_gb();
-        let advice = imagegen::advice_for_memory(memory);
+        let card = imagegen::graphics_card();
+        let advice = imagegen::advice_for_memory(memory).or_else(|| {
+            card.as_ref()
+                .and_then(|c| imagegen::advice_for_card(c.gb))
+        });
         if let (Some(gb), Some(_)) = (memory, advice) {
             ui.add(
                 egui::Label::new(
@@ -841,6 +845,24 @@ impl ImageGenDialog {
                         "This Mac has {gb:.0} GB of memory, shared by the processor and the graphics. The Standard models fit comfortably; High quality may be slow here."
                     ))
                     .color(theme::TEXT_DIM),
+                )
+                .wrap(),
+            );
+        }
+        if let Some(c) = &card {
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!(
+                        "Your graphics card: {} ({:.0} GB of memory). {}",
+                        c.name,
+                        c.gb,
+                        imagegen::card_note(c.gb)
+                    ))
+                    .color(if c.gb < 10.0 {
+                        theme::WARNING
+                    } else {
+                        theme::TEXT_DIM
+                    }),
                 )
                 .wrap(),
             );
@@ -880,7 +902,7 @@ impl ImageGenDialog {
                                 if advice == Some(q) {
                                     ui.label(
                                         RichText::new(format!(
-                                            "{}  Recommended for this Mac",
+                                            "{}  Recommended for this computer",
                                             ph::STAR
                                         ))
                                         .size(12.5)
